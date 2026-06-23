@@ -42,6 +42,10 @@ class InvoiceStatus(str, Enum):
     PENDING_ACTION = "pending_action"
     OVERDUE = "overdue"
     PAID = "paid"
+    READY_FOR_APPROVAL = "ready_for_approval"
+    PARTIALLY_APPROVED = "partially_approved"
+    REJECTED = "rejected"
+    ESCALATED = "escalated"
 
 
 class DisputeStatus(str, Enum):
@@ -80,6 +84,9 @@ class InvoiceValidationOutcome(str, Enum):
     AMBIGUOUS = "ambiguous"
     UNRESOLVED = "unresolved"
     DUPLICATE = "duplicate"
+    APPROVED = "approved"
+    PENDING_REVIEW = "pending_review"
+    REJECTED = "rejected"
 
 
 class AllocationMatchType(str, Enum):

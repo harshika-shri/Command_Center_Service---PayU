@@ -13,6 +13,7 @@ dependencies = [
     "pydantic-settings>=2.14.2",
     "pyjwt>=2.13.0",
     "python-multipart>=0.0.32",
+    "redis>=5.2.1",
     "sqlalchemy>=2.0.51",
     "sse-starlette>=3.4.5",
     "uvicorn>=0.49.0",
