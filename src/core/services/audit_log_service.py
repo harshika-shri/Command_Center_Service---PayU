@@ -21,6 +21,7 @@ class AuditLogCreatePayload:
     old_status: str | None
     new_status: str | None
     remarks: str | None
+    performed_by: UUID | None = None
 
 
 class AuditLogService:
@@ -42,6 +43,7 @@ class AuditLogService:
             old_status=payload.old_status,
             new_status=payload.new_status,
             remarks=payload.remarks,
+            performed_by=payload.performed_by,
         )
 
     @staticmethod

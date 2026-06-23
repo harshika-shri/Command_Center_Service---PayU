@@ -46,6 +46,7 @@ class InvoiceStatus(str, Enum):
     PARTIALLY_APPROVED = "partially_approved"
     REJECTED = "rejected"
     ESCALATED = "escalated"
+    READY_TO_PAY = "ready_to_pay"
 
 
 class DisputeStatus(str, Enum):
@@ -100,6 +101,7 @@ class AllocationStatus(str, Enum):
     PENDING = "pending"
     COMMITTED = "committed"
     CANCELLED = "cancelled"
+    CONFIRMED = "confirmed"
 
 
 class ValidationFlowOutcome(str, Enum):
