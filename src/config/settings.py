@@ -18,6 +18,35 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    REDIS_HOST: str = Field(default="redis", validation_alias="REDIS_HOST")
+    REDIS_PORT: int = Field(default=6379, validation_alias="REDIS_PORT")
+    REDIS_DB: int = Field(default=0, validation_alias="REDIS_DB")
+
+    VALIDATION_EVENTS_STREAM: str = Field(
+        default="validation-events",
+        validation_alias="VALIDATION_EVENTS_STREAM",
+    )
+    VALIDATION_EVENTS_CONSUMER_GROUP: str = Field(
+        default="command-center-service",
+        validation_alias="VALIDATION_EVENTS_CONSUMER_GROUP",
+    )
+    VALIDATION_EVENTS_CONSUMER_NAME: str = Field(
+        default="command-center-worker-1",
+        validation_alias="VALIDATION_EVENTS_CONSUMER_NAME",
+    )
+    REDIS_STREAM_BLOCK_MS: int = Field(
+        default=5000,
+        validation_alias="REDIS_STREAM_BLOCK_MS",
+    )
+    REDIS_STREAM_BATCH_SIZE: int = Field(
+        default=10,
+        validation_alias="REDIS_STREAM_BATCH_SIZE",
+    )
+    REDIS_STREAM_MAX_RETRIES: int = Field(
+        default=3,
+        validation_alias="REDIS_STREAM_MAX_RETRIES",
+    )
+
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
         if not self.DATABASE_URL:
