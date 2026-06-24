@@ -25,6 +25,4 @@ class FinanceAssociateReviewResponse(BaseModel):
 
 
 FinanceAssociateInvoiceListResponse = DashboardInvoiceListResponse
-
-# Dashboard summary includes an optional total count for shared dashboard reuse.
 FinanceAssociateDashboardSummaryResponse = DashboardSummaryResponse
