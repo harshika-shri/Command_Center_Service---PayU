@@ -15,6 +15,9 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.invoice_ownership_service import (
+    InvoiceOwnershipService,
+)
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_escalation,
 )
@@ -23,6 +26,9 @@ from src.data.models.postgres.enums import (
 )
 from src.data.repositories.escalation_repo import (
     EscalationRepository,
+)
+from src.data.repositories.user_repo import (
+    UserRepository,
 )
 from src.schemas.escalation_schema import (
     EscalateInvoiceRequest,
@@ -43,6 +49,12 @@ class EscalateInvoiceService:
         self.audit_log_service = AuditLogService(
             session,
         )
+        self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
+        self.user_repo = UserRepository(
+            session,
+        )
 
     async def escalate_invoice(
         self,
@@ -60,6 +72,21 @@ class EscalateInvoiceService:
 
         previous_status = self._validate_invoice_eligibility(
             snapshot.invoice_status,
+        )
+
+        escalating_user = await self.user_repo.get_user_by_id(
+            request.escalated_by,
+        )
+
+        if escalating_user is None:
+            raise InvoiceEscalationValidationError(
+                "Escalating user must be an active user.",
+            )
+
+        await self.ownership_service.ensure_can_take_action(
+            user_id=request.escalated_by,
+            user_role=escalating_user.role,
+            invoice_id=invoice_id,
         )
 
         manager = await self.escalation_repo.get_finance_manager(

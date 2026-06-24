@@ -15,6 +15,9 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.invoice_ownership_service import (
+    InvoiceOwnershipService,
+)
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_business_rejection,
 )
@@ -49,6 +52,9 @@ class RejectInvoiceService:
         self.audit_log_service = AuditLogService(
             session,
         )
+        self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
 
     async def reject_invoice(
         self,
@@ -76,6 +82,12 @@ class RejectInvoiceService:
             raise InvoiceRejectionValidationError(
                 "Rejecting user must be an active user.",
             )
+
+        await self.ownership_service.ensure_can_take_action(
+            user_id=request.rejected_by,
+            user_role=rejecting_user.role,
+            invoice_id=invoice_id,
+        )
 
         rejection_reason = request.rejection_reason.strip()
 

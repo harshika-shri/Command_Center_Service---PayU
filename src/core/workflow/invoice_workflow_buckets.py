@@ -98,3 +98,11 @@ def is_rejected_for_vendor_communication(
     invoice_status: InvoiceStatus | None,
 ) -> bool:
     return invoice_status == InvoiceStatus.REJECTED
+
+
+def unassigned_queue_filter() -> ColumnElement[bool]:
+    from src.data.repositories.invoice_ownership_repo import (
+        InvoiceOwnershipRepository,
+    )
+
+    return InvoiceOwnershipRepository.unassigned_queue_filter()

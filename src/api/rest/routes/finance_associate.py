@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -5,8 +7,8 @@ from src.api.rest.dependencies import (
     get_db_session,
     require_roles,
 )
-from src.core.services.dashboard_service import (
-    DashboardService,
+from src.core.services.finance_associate_service import (
+    FinanceAssociateService,
 )
 from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
@@ -15,15 +17,17 @@ from src.schemas.dashboard_schema import (
     DashboardPaginationParams,
     DashboardSummaryResponse,
 )
-
-router = APIRouter(
-    prefix="/dashboard",
-    tags=["Dashboard"],
+from src.schemas.finance_associate_schema import (
+    FinanceAssociateReviewResponse,
 )
 
-DASHBOARD_ROLES = (
+router = APIRouter(
+    prefix="/finance-associate",
+    tags=["Finance Associate"],
+)
+
+FINANCE_ASSOCIATE_ROLES = (
     UserRole.FINANCE_ASSOCIATE,
-    UserRole.FINANCE_MANAGER,
 )
 
 
@@ -45,25 +49,25 @@ def _pagination_params(
 
 
 @router.get(
-    "/summary",
+    "/dashboard/summary",
     response_model=DashboardSummaryResponse,
 )
-async def get_dashboard_summary(
+async def get_finance_associate_summary(
     db: AsyncSession = Depends(
         get_db_session,
     ),
     current_user: User = Depends(
         require_roles(
-            *DASHBOARD_ROLES,
+            *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
 ) -> DashboardSummaryResponse:
-    service = DashboardService(
+    service = FinanceAssociateService(
         db,
     )
 
     return await service.get_summary(
-        current_user,
+        current_user.id,
     )
 
 
@@ -71,7 +75,7 @@ async def get_dashboard_summary(
     "/invoices/ready-for-approval",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_ready_for_approval_invoices(
+async def list_finance_associate_ready_for_approval(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -80,17 +84,17 @@ async def list_ready_for_approval_invoices(
     ),
     current_user: User = Depends(
         require_roles(
-            *DASHBOARD_ROLES,
+            *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = DashboardService(
+    service = FinanceAssociateService(
         db,
     )
 
     return await service.list_ready_for_approval(
+        current_user.id,
         pagination,
-        current_user,
     )
 
 
@@ -98,7 +102,7 @@ async def list_ready_for_approval_invoices(
     "/invoices/needs-review",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_needs_review_invoices(
+async def list_finance_associate_needs_review(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -107,44 +111,17 @@ async def list_needs_review_invoices(
     ),
     current_user: User = Depends(
         require_roles(
-            *DASHBOARD_ROLES,
+            *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = DashboardService(
+    service = FinanceAssociateService(
         db,
     )
 
     return await service.list_needs_review(
+        current_user.id,
         pagination,
-        current_user,
-    )
-
-
-@router.get(
-    "/invoices/escalated",
-    response_model=DashboardInvoiceListResponse,
-)
-async def list_escalated_invoices(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
-    ),
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-    current_user: User = Depends(
-        require_roles(
-            *DASHBOARD_ROLES,
-        ),
-    ),
-) -> DashboardInvoiceListResponse:
-    service = DashboardService(
-        db,
-    )
-
-    return await service.list_escalated(
-        pagination,
-        current_user,
     )
 
 
@@ -152,7 +129,7 @@ async def list_escalated_invoices(
     "/invoices/ready-to-pay",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_ready_to_pay_invoices(
+async def list_finance_associate_ready_to_pay(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -161,17 +138,17 @@ async def list_ready_to_pay_invoices(
     ),
     current_user: User = Depends(
         require_roles(
-            *DASHBOARD_ROLES,
+            *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = DashboardService(
+    service = FinanceAssociateService(
         db,
     )
 
     return await service.list_ready_to_pay(
+        current_user.id,
         pagination,
-        current_user,
     )
 
 
@@ -179,7 +156,7 @@ async def list_ready_to_pay_invoices(
     "/invoices/rejected",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_rejected_invoices(
+async def list_finance_associate_rejected(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -188,15 +165,40 @@ async def list_rejected_invoices(
     ),
     current_user: User = Depends(
         require_roles(
-            *DASHBOARD_ROLES,
+            *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = DashboardService(
+    service = FinanceAssociateService(
         db,
     )
 
     return await service.list_rejected(
+        current_user.id,
         pagination,
-        current_user,
+    )
+
+
+@router.get(
+    "/invoices/{invoice_id}/review",
+    response_model=FinanceAssociateReviewResponse,
+)
+async def get_finance_associate_invoice_review(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_ASSOCIATE_ROLES,
+        ),
+    ),
+) -> FinanceAssociateReviewResponse:
+    service = FinanceAssociateService(
+        db,
+    )
+
+    return await service.get_review(
+        current_user.id,
+        invoice_id,
     )
