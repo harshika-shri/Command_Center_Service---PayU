@@ -4,7 +4,9 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.data.models.postgres.enums import InvoiceStatus
+from src.core.workflow.invoice_workflow_buckets import (
+    DashboardBucket,
+)
 from src.data.repositories.dashboard_repo import (
     DashboardInvoiceRow,
     DashboardRepository,
@@ -31,9 +33,10 @@ class DashboardService:
 
         return DashboardSummaryResponse(
             ready_for_approval=counts.ready_for_approval,
-            partially_approved=counts.partially_approved,
-            rejected=counts.rejected,
+            needs_review=counts.needs_review,
             escalated=counts.escalated,
+            ready_to_pay=counts.ready_to_pay,
+            rejected=counts.rejected,
             total=counts.total,
         )
 
@@ -41,26 +44,17 @@ class DashboardService:
         self,
         pagination: DashboardPaginationParams,
     ) -> DashboardInvoiceListResponse:
-        return await self._list_by_status(
-            invoice_status=InvoiceStatus.READY_FOR_APPROVAL,
+        return await self._list_by_bucket(
+            bucket=DashboardBucket.READY_FOR_APPROVAL,
             pagination=pagination,
         )
 
-    async def list_partially_approved(
+    async def list_needs_review(
         self,
         pagination: DashboardPaginationParams,
     ) -> DashboardInvoiceListResponse:
-        return await self._list_by_status(
-            invoice_status=InvoiceStatus.PARTIALLY_APPROVED,
-            pagination=pagination,
-        )
-
-    async def list_rejected(
-        self,
-        pagination: DashboardPaginationParams,
-    ) -> DashboardInvoiceListResponse:
-        return await self._list_by_status(
-            invoice_status=InvoiceStatus.REJECTED,
+        return await self._list_by_bucket(
+            bucket=DashboardBucket.NEEDS_REVIEW,
             pagination=pagination,
         )
 
@@ -68,21 +62,41 @@ class DashboardService:
         self,
         pagination: DashboardPaginationParams,
     ) -> DashboardInvoiceListResponse:
-        return await self._list_by_status(
-            invoice_status=InvoiceStatus.ESCALATED,
+        return await self._list_by_bucket(
+            bucket=DashboardBucket.ESCALATED,
             pagination=pagination,
         )
 
-    async def _list_by_status(
+    async def list_ready_to_pay(
         self,
-        *,
-        invoice_status: InvoiceStatus,
         pagination: DashboardPaginationParams,
     ) -> DashboardInvoiceListResponse:
-        rows, total_records = await self.dashboard_repo.list_invoices_by_status(
-            invoice_status=invoice_status,
-            offset=pagination.offset,
-            limit=pagination.page_size,
+        return await self._list_by_bucket(
+            bucket=DashboardBucket.READY_TO_PAY,
+            pagination=pagination,
+        )
+
+    async def list_rejected(
+        self,
+        pagination: DashboardPaginationParams,
+    ) -> DashboardInvoiceListResponse:
+        return await self._list_by_bucket(
+            bucket=DashboardBucket.REJECTED,
+            pagination=pagination,
+        )
+
+    async def _list_by_bucket(
+        self,
+        *,
+        bucket: DashboardBucket,
+        pagination: DashboardPaginationParams,
+    ) -> DashboardInvoiceListResponse:
+        rows, total_records = (
+            await self.dashboard_repo.list_invoices_by_bucket(
+                bucket=bucket,
+                offset=pagination.offset,
+                limit=pagination.page_size,
+            )
         )
 
         return DashboardInvoiceListResponse(

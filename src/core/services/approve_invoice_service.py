@@ -18,6 +18,9 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.workflow.invoice_workflow_buckets import (
+    is_ready_for_approval,
+)
 from src.data.models.postgres.enums import (
     InvoiceStatus,
     InvoiceValidationOutcome,
@@ -118,7 +121,7 @@ class ApproveInvoiceService:
             AuditLogCreatePayload(
                 invoice_id=invoice_id,
                 action="APPROVE_AND_PAY",
-                old_status=InvoiceStatus.READY_FOR_APPROVAL.value,
+                old_status=InvoiceStatus.UNDER_REVIEW.value,
                 new_status=InvoiceStatus.READY_TO_PAY.value,
                 remarks=remarks,
                 performed_by=request.approved_by,
@@ -143,12 +146,11 @@ class ApproveInvoiceService:
                 "Invoice has already been approved for payment.",
             )
 
-        if validation_outcome != InvoiceValidationOutcome.APPROVED:
+        if not is_ready_for_approval(
+            invoice_status=invoice_status,
+            validation_outcome=validation_outcome,
+        ):
             raise InvoiceApprovalConflictError(
-                "Invoice validation outcome must be APPROVED.",
-            )
-
-        if invoice_status != InvoiceStatus.READY_FOR_APPROVAL:
-            raise InvoiceApprovalConflictError(
-                "Invoice must be in READY_FOR_APPROVAL status.",
+                "Invoice must have approved validation outcome "
+                "and be under human review.",
             )

@@ -20,6 +20,17 @@ class InvoiceCompanySummary(BaseModel):
     gstin: str | None = None
 
 
+class InvoiceWorkflowState(BaseModel):
+    validation_outcome: str | None = Field(
+        default=None,
+        description="System validation result from Validation Service.",
+    )
+    invoice_status: str | None = Field(
+        default=None,
+        description="Human workflow status managed by Command Center.",
+    )
+
+
 class InvoiceHeaderResponse(BaseModel):
     invoice_id: UUID
     invoice_number: str | None
@@ -200,6 +211,7 @@ class LineAllocationCandidateResponse(BaseModel):
 
 
 class InvoiceReviewResponse(BaseModel):
+    workflow: InvoiceWorkflowState
     header: InvoiceHeaderResponse
     extraction: InvoiceExtractionResponse
     validation: InvoiceValidationResponse

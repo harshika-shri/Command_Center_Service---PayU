@@ -24,21 +24,30 @@ WORKFLOW_TRANSITIONS: dict[
     WorkflowTransition,
 ] = {
     ValidationEventOutcome.APPROVED: WorkflowTransition(
-        target_status=InvoiceStatus.READY_FOR_APPROVAL,
+        target_status=InvoiceStatus.UNDER_REVIEW,
         target_validation_outcome=InvoiceValidationOutcome.APPROVED,
         audit_action="VALIDATION_COMPLETED",
-        remarks="Invoice moved to Ready For Approval bucket",
+        remarks=(
+            "Validation completed with approved outcome; "
+            "invoice moved to human review"
+        ),
     ),
     ValidationEventOutcome.PENDING_REVIEW: WorkflowTransition(
-        target_status=InvoiceStatus.PARTIALLY_APPROVED,
+        target_status=InvoiceStatus.UNDER_REVIEW,
         target_validation_outcome=InvoiceValidationOutcome.PENDING_REVIEW,
         audit_action="VALIDATION_PENDING_REVIEW",
-        remarks="Invoice requires manual review",
+        remarks=(
+            "Validation completed with pending review outcome; "
+            "invoice moved to human review"
+        ),
     ),
     ValidationEventOutcome.REJECTED: WorkflowTransition(
-        target_status=InvoiceStatus.REJECTED,
+        target_status=InvoiceStatus.UNDER_REVIEW,
         target_validation_outcome=InvoiceValidationOutcome.REJECTED,
         audit_action="VALIDATION_REJECTED",
-        remarks="Invoice moved to rejected bucket",
+        remarks=(
+            "Validation completed with rejected outcome; "
+            "invoice moved to human review"
+        ),
     ),
 }

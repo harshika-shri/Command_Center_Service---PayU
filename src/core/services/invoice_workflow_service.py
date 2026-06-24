@@ -123,4 +123,8 @@ class InvoiceWorkflowService:
         snapshot: InvoiceWorkflowSnapshot,
         transition: WorkflowTransition,
     ) -> bool:
-        return snapshot.invoice_status == transition.target_status
+        return (
+            snapshot.invoice_status == transition.target_status
+            and snapshot.validation_outcome
+            == transition.target_validation_outcome
+        )

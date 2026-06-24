@@ -92,10 +92,10 @@ async def list_ready_for_approval_invoices(
 
 
 @router.get(
-    "/invoices/partially-approved",
+    "/invoices/needs-review",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_partially_approved_invoices(
+async def list_needs_review_invoices(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -112,33 +112,7 @@ async def list_partially_approved_invoices(
         db,
     )
 
-    return await service.list_partially_approved(
-        pagination,
-    )
-
-
-@router.get(
-    "/invoices/rejected",
-    response_model=DashboardInvoiceListResponse,
-)
-async def list_rejected_invoices(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
-    ),
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-    _: User = Depends(
-        require_roles(
-            *DASHBOARD_ROLES,
-        ),
-    ),
-) -> DashboardInvoiceListResponse:
-    service = DashboardService(
-        db,
-    )
-
-    return await service.list_rejected(
+    return await service.list_needs_review(
         pagination,
     )
 
@@ -165,5 +139,57 @@ async def list_escalated_invoices(
     )
 
     return await service.list_escalated(
+        pagination,
+    )
+
+
+@router.get(
+    "/invoices/ready-to-pay",
+    response_model=DashboardInvoiceListResponse,
+)
+async def list_ready_to_pay_invoices(
+    pagination: DashboardPaginationParams = Depends(
+        _pagination_params,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    _: User = Depends(
+        require_roles(
+            *DASHBOARD_ROLES,
+        ),
+    ),
+) -> DashboardInvoiceListResponse:
+    service = DashboardService(
+        db,
+    )
+
+    return await service.list_ready_to_pay(
+        pagination,
+    )
+
+
+@router.get(
+    "/invoices/rejected",
+    response_model=DashboardInvoiceListResponse,
+)
+async def list_rejected_invoices(
+    pagination: DashboardPaginationParams = Depends(
+        _pagination_params,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    _: User = Depends(
+        require_roles(
+            *DASHBOARD_ROLES,
+        ),
+    ),
+) -> DashboardInvoiceListResponse:
+    service = DashboardService(
+        db,
+    )
+
+    return await service.list_rejected(
         pagination,
     )
