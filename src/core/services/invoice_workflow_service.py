@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions.workflow_exc import (
     InvoiceNotFoundError,
+    ValidationEventProcessingError,
 )
 from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
@@ -62,6 +63,13 @@ class InvoiceWorkflowService:
                 str(event.invoice_id),
             )
 
+        expected_outcome = transition.target_validation_outcome
+
+        if snapshot.validation_outcome != expected_outcome:
+            raise ValidationEventProcessingError(
+                "Validation outcome on invoice does not match event payload.",
+            )
+
         if self._is_duplicate_event(
             snapshot,
             transition,
@@ -87,10 +95,9 @@ class InvoiceWorkflowService:
             snapshot.invoice_status,
         )
 
-        await self.invoice_repo.update_workflow_state(
+        await self.invoice_repo.update_invoice_status(
             event.invoice_id,
             invoice_status=transition.target_status,
-            validation_outcome=transition.target_validation_outcome,
         )
         await self.audit_log_service.create_audit_log(
             AuditLogCreatePayload(
