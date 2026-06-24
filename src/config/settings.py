@@ -65,7 +65,7 @@ class Settings(BaseSettings):
         validation_alias="GROQ_API_BASE_URL",
     )
     GROQ_LLM_MODEL: str = Field(
-        default="qwen/qwen3-32b",
+        default="qwen/qwen3.6-27b",
         validation_alias="GROQ_LLM_MODEL",
     )
     GROQ_LLM_MAX_TOKENS: int = Field(

@@ -80,6 +80,10 @@ OPEN_ISSUE_MESSAGES: dict[str, str] = {
     ),
 }
 
+_INTERNAL_CODE_PATTERN = re.compile(
+    r"^[A-Z0-9_]+$",
+)
+
 
 def vendor_friendly_issue_message(
     *,
@@ -88,15 +92,23 @@ def vendor_friendly_issue_message(
 ) -> str:
     normalized_code = issue_code.strip().upper()
 
-    if normalized_code in OPEN_ISSUE_MESSAGES:
-        return OPEN_ISSUE_MESSAGES[normalized_code]
+    mapped = OPEN_ISSUE_MESSAGES.get(
+        normalized_code,
+    )
 
-    if description.strip():
-        return description.strip()
+    if mapped:
+        return mapped
+
+    cleaned_description = description.strip()
+
+    if cleaned_description and not _INTERNAL_CODE_PATTERN.match(
+        cleaned_description,
+    ):
+        return cleaned_description
 
     return (
-        "An issue was identified during invoice review that requires "
-        "correction."
+        "A discrepancy was identified during invoice review that requires "
+        "corrective action."
     )
 
 
