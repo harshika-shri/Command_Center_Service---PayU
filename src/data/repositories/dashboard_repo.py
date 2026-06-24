@@ -7,7 +7,10 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 
-from src.data.models.postgres.enums import InvoiceStatus
+from src.core.workflow.invoice_workflow_buckets import (
+    DashboardBucket,
+    dashboard_bucket_filter,
+)
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
@@ -16,9 +19,10 @@ from src.data.repositories.base_repo import BaseRepository
 @dataclass(frozen=True, slots=True)
 class DashboardSummaryCounts:
     ready_for_approval: int
-    partially_approved: int
-    rejected: int
+    needs_review: int
     escalated: int
+    ready_to_pay: int
+    rejected: int
     total: int
 
 
@@ -38,62 +42,45 @@ class DashboardInvoiceRow:
 
 class DashboardRepository(BaseRepository):
     async def get_summary_counts(self) -> DashboardSummaryCounts:
-        result = await self.execute(
-            select(
-                func.count()
-                .filter(
-                    Invoice.invoice_status == InvoiceStatus.READY_FOR_APPROVAL,
-                )
-                .label(
-                    "ready_for_approval",
-                ),
-                func.count()
-                .filter(
-                    Invoice.invoice_status == InvoiceStatus.PARTIALLY_APPROVED,
-                )
-                .label(
-                    "partially_approved",
-                ),
-                func.count()
-                .filter(
-                    Invoice.invoice_status == InvoiceStatus.REJECTED,
-                )
-                .label(
-                    "rejected",
-                ),
-                func.count()
-                .filter(
-                    Invoice.invoice_status == InvoiceStatus.ESCALATED,
-                )
-                .label(
-                    "escalated",
-                ),
-            ).select_from(
-                Invoice,
-            ),
-        )
-        row = result.one()
+        counts = {
+            bucket.value: await self._count_bucket(
+                bucket,
+            )
+            for bucket in DashboardBucket
+        }
 
         return DashboardSummaryCounts(
-            ready_for_approval=row.ready_for_approval,
-            partially_approved=row.partially_approved,
-            rejected=row.rejected,
-            escalated=row.escalated,
-            total=(
-                row.ready_for_approval
-                + row.partially_approved
-                + row.rejected
-                + row.escalated
+            ready_for_approval=counts[
+                DashboardBucket.READY_FOR_APPROVAL.value
+            ],
+            needs_review=counts[
+                DashboardBucket.NEEDS_REVIEW.value
+            ],
+            escalated=counts[
+                DashboardBucket.ESCALATED.value
+            ],
+            ready_to_pay=counts[
+                DashboardBucket.READY_TO_PAY.value
+            ],
+            rejected=counts[
+                DashboardBucket.REJECTED.value
+            ],
+            total=sum(
+                counts.values(),
             ),
         )
 
-    async def list_invoices_by_status(
+    async def list_invoices_by_bucket(
         self,
         *,
-        invoice_status: InvoiceStatus,
+        bucket: DashboardBucket,
         offset: int,
         limit: int,
     ) -> tuple[list[DashboardInvoiceRow], int]:
+        bucket_filter = dashboard_bucket_filter(
+            bucket,
+        )
+
         base_query = (
             select(
                 Invoice.id,
@@ -115,7 +102,7 @@ class DashboardRepository(BaseRepository):
                 Invoice.vendor_id == VendorMaster.id,
             )
             .where(
-                Invoice.invoice_status == invoice_status,
+                bucket_filter,
             )
         )
 
@@ -127,7 +114,7 @@ class DashboardRepository(BaseRepository):
                 Invoice,
             )
             .where(
-                Invoice.invoice_status == invoice_status,
+                bucket_filter,
             ),
         )
         total_records = int(
@@ -159,7 +146,9 @@ class DashboardRepository(BaseRepository):
                     else None
                 ),
                 invoice_status=(
-                    row.invoice_status.value if row.invoice_status is not None else None
+                    row.invoice_status.value
+                    if row.invoice_status is not None
+                    else None
                 ),
                 rejection_reason=row.rejection_reason,
                 escalated_to=row.escalated_to,
@@ -169,3 +158,25 @@ class DashboardRepository(BaseRepository):
         ]
 
         return items, total_records
+
+    async def _count_bucket(
+        self,
+        bucket: DashboardBucket,
+    ) -> int:
+        result = await self.execute(
+            select(
+                func.count(),
+            )
+            .select_from(
+                Invoice,
+            )
+            .where(
+                dashboard_bucket_filter(
+                    bucket,
+                ),
+            ),
+        )
+
+        return int(
+            result.scalar_one(),
+        )

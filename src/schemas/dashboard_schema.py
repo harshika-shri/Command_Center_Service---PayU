@@ -8,9 +8,10 @@ from pydantic import BaseModel, Field
 
 class DashboardSummaryResponse(BaseModel):
     ready_for_approval: int
-    partially_approved: int
-    rejected: int
+    needs_review: int
     escalated: int
+    ready_to_pay: int
+    rejected: int
     total: int
 
 

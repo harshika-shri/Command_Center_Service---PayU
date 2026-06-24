@@ -27,8 +27,12 @@ from src.core.services.sendgrid_service import (
 from src.core.workflow.clarification_draft_builder import (
     ClarificationDraftBuilder,
 )
+from src.core.workflow.invoice_workflow_buckets import (
+    is_eligible_for_clarification,
+)
 from src.data.models.postgres.enums import (
     InvoiceStatus,
+    InvoiceValidationOutcome,
 )
 from src.data.repositories.clarification_repo import (
     ClarificationRepository,
@@ -36,14 +40,6 @@ from src.data.repositories.clarification_repo import (
 from src.schemas.clarification_schema import (
     SendClarificationRequest,
     SendClarificationResponse,
-)
-
-_ELIGIBLE_CLARIFICATION_STATUSES = frozenset(
-    {
-        InvoiceStatus.PARTIALLY_APPROVED,
-        InvoiceStatus.REJECTED,
-        InvoiceStatus.ESCALATED,
-    },
 )
 
 
@@ -87,7 +83,8 @@ class ClarificationEmailService:
             )
 
         current_status = self._validate_invoice_eligibility(
-            snapshot.invoice_status,
+            invoice_status=snapshot.invoice_status,
+            validation_outcome=snapshot.validation_outcome,
         )
 
         vendor_email = await self.clarification_repo.get_vendor_email(
@@ -146,16 +143,23 @@ class ClarificationEmailService:
 
     @staticmethod
     def _validate_invoice_eligibility(
+        *,
         invoice_status: InvoiceStatus | None,
+        validation_outcome: InvoiceValidationOutcome | None,
     ) -> str:
         if invoice_status == InvoiceStatus.READY_TO_PAY:
             raise ClarificationConflictError(
                 "Clarification is not allowed for invoices ready to pay.",
             )
 
-        if (
-            invoice_status is None
-            or invoice_status not in _ELIGIBLE_CLARIFICATION_STATUSES
+        if invoice_status == InvoiceStatus.REJECTED:
+            raise ClarificationConflictError(
+                "Clarification is not allowed for rejected invoices.",
+            )
+
+        if not is_eligible_for_clarification(
+            invoice_status=invoice_status,
+            validation_outcome=validation_outcome,
         ):
             raise ClarificationConflictError(
                 "Invoice is not in an eligible state for clarification.",

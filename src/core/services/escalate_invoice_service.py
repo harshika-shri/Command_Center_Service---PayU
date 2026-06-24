@@ -15,6 +15,9 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.workflow.invoice_workflow_buckets import (
+    is_eligible_for_escalation,
+)
 from src.data.models.postgres.enums import (
     InvoiceStatus,
 )
@@ -24,14 +27,6 @@ from src.data.repositories.escalation_repo import (
 from src.schemas.escalation_schema import (
     EscalateInvoiceRequest,
     EscalateInvoiceResponse,
-)
-
-_ELIGIBLE_ESCALATION_STATUSES = frozenset(
-    {
-        InvoiceStatus.READY_FOR_APPROVAL,
-        InvoiceStatus.PARTIALLY_APPROVED,
-        InvoiceStatus.REJECTED,
-    },
 )
 
 
@@ -113,12 +108,11 @@ class EscalateInvoiceService:
                 "Invoice approved for payment cannot be escalated.",
             )
 
-        if (
-            invoice_status is None
-            or invoice_status not in _ELIGIBLE_ESCALATION_STATUSES
+        if not is_eligible_for_escalation(
+            invoice_status,
         ):
             raise InvoiceEscalationConflictError(
-                "Invoice is not in an eligible state for escalation.",
+                "Invoice must be under human review to escalate.",
             )
 
         return invoice_status.value

@@ -42,6 +42,7 @@ class InvoiceStatus(str, Enum):
     PENDING_ACTION = "pending_action"
     OVERDUE = "overdue"
     PAID = "paid"
+    UNDER_REVIEW = "under_review"
     READY_FOR_APPROVAL = "ready_for_approval"
     PARTIALLY_APPROVED = "partially_approved"
     REJECTED = "rejected"

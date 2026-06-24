@@ -8,6 +8,7 @@ from sqlalchemy import select
 
 from src.data.models.postgres.enums import (
     InvoiceStatus,
+    InvoiceValidationOutcome,
     ValidationIssueStatus,
 )
 from src.data.models.postgres.invoice_extracted_vendor import (
@@ -34,6 +35,7 @@ class ClarificationInvoiceSnapshot:
     invoice_id: UUID
     invoice_number: str | None
     invoice_status: InvoiceStatus | None
+    validation_outcome: InvoiceValidationOutcome | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,6 +44,10 @@ class ClarificationDraftContext:
     vendor_email: str | None
     vendor_clarifications: list[str]
     unresolved_issue_descriptions: list[str]
+
+    @property
+    def validation_outcome(self) -> InvoiceValidationOutcome | None:
+        return self.invoice.validation_outcome
 
 
 class ClarificationRepository(BaseRepository):
@@ -54,6 +60,7 @@ class ClarificationRepository(BaseRepository):
                 Invoice.id,
                 Invoice.invoice_number,
                 Invoice.invoice_status,
+                Invoice.validation_outcome,
                 Invoice.vendor_id,
                 VendorMaster.email,
                 InvoiceExtractedVendor.vendor_email,
@@ -94,6 +101,7 @@ class ClarificationRepository(BaseRepository):
                 invoice_id=invoice_row.id,
                 invoice_number=invoice_row.invoice_number,
                 invoice_status=invoice_row.invoice_status,
+                validation_outcome=invoice_row.validation_outcome,
             ),
             vendor_email=vendor_email,
             vendor_clarifications=vendor_clarifications,
@@ -109,6 +117,7 @@ class ClarificationRepository(BaseRepository):
                 Invoice.id,
                 Invoice.invoice_number,
                 Invoice.invoice_status,
+                Invoice.validation_outcome,
             ).where(
                 Invoice.id == invoice_id,
             ),
@@ -122,6 +131,7 @@ class ClarificationRepository(BaseRepository):
             invoice_id=row.id,
             invoice_number=row.invoice_number,
             invoice_status=row.invoice_status,
+            validation_outcome=row.validation_outcome,
         )
 
     async def get_vendor_email(

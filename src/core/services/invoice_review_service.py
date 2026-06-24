@@ -24,6 +24,7 @@ from src.core.services.po_candidate_service import (
 )
 from src.schemas.invoice_review_schema import (
     InvoiceReviewResponse,
+    InvoiceWorkflowState,
 )
 
 
@@ -65,12 +66,17 @@ class InvoiceReviewService:
                 require_exists=False,
             )
         )
+        header = await self.header_service.get_header(
+            invoice_id,
+            require_exists=False,
+        )
 
         return InvoiceReviewResponse(
-            header=await self.header_service.get_header(
-                invoice_id,
-                require_exists=False,
+            workflow=InvoiceWorkflowState(
+                validation_outcome=header.validation_outcome,
+                invoice_status=header.invoice_status,
             ),
+            header=header,
             extraction=await self.extraction_service.get_extraction(
                 invoice_id,
                 require_exists=False,
