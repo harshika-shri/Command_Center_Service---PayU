@@ -20,6 +20,7 @@ from src.core.services.invoice_ownership_service import (
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.models.postgres.enums import (
     UserRole,
 )
@@ -124,6 +125,14 @@ class TakeOwnershipService:
         await self.notification_service.notify_ownership_claimed(
             invoice_id=invoice_id,
             manager_id=request.manager_id,
+        )
+
+        await SSEEventPublisher.schedule_take_ownership_events(
+            self.ownership_repo.session,
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
+            invoice_status=snapshot.invoice_status,
+            validation_outcome=snapshot.validation_outcome,
         )
 
         return TakeOwnershipResponse(

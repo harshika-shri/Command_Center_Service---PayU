@@ -21,11 +21,13 @@ from src.core.services.invoice_ownership_service import (
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_business_rejection,
 )
 from src.data.models.postgres.enums import (
     InvoiceStatus,
+    InvoiceValidationOutcome,
 )
 from src.data.repositories.rejection_repo import (
     RejectionRepository,
@@ -120,6 +122,14 @@ class RejectInvoiceService:
 
         await self.notification_service.notify_invoice_rejected(
             invoice_id,
+        )
+
+        await SSEEventPublisher.schedule_invoice_state_change(
+            self.rejection_repo.session,
+            invoice_id=invoice_id,
+            invoice_status=InvoiceStatus.REJECTED,
+            validation_outcome=snapshot.validation_outcome
+            or InvoiceValidationOutcome.PENDING_REVIEW,
         )
 
         return RejectInvoiceResponse(

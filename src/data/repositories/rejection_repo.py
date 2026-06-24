@@ -9,6 +9,7 @@ from src.data.models.postgres.disputes import Dispute
 from src.data.models.postgres.enums import (
     DisputeStatus,
     InvoiceStatus,
+    InvoiceValidationOutcome,
     ValidationIssueStatus,
 )
 from src.data.models.postgres.invoice_extracted_vendor import (
@@ -37,6 +38,7 @@ class RejectionInvoiceSnapshot:
     invoice_id: UUID
     invoice_number: str | None
     invoice_status: InvoiceStatus | None
+    validation_outcome: InvoiceValidationOutcome | None
     rejection_reason: str | None
 
 
@@ -76,6 +78,7 @@ class RejectionRepository(BaseRepository):
             invoice_id=invoice.id,
             invoice_number=invoice.invoice_number,
             invoice_status=invoice.invoice_status,
+            validation_outcome=invoice.validation_outcome,
             rejection_reason=invoice.rejection_reason,
         )
 

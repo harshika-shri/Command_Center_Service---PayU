@@ -21,11 +21,13 @@ from src.core.services.invoice_ownership_service import (
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_escalation,
 )
 from src.data.models.postgres.enums import (
     InvoiceStatus,
+    InvoiceValidationOutcome,
 )
 from src.data.repositories.escalation_repo import (
     EscalationRepository,
@@ -128,6 +130,15 @@ class EscalateInvoiceService:
             invoice_id=invoice_id,
             manager_id=request.manager_id,
             associate_id=associate_id,
+        )
+
+        await SSEEventPublisher.schedule_escalation_events(
+            self.escalation_repo.session,
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
+            associate_id=associate_id,
+            validation_outcome=snapshot.validation_outcome
+            or InvoiceValidationOutcome.APPROVED,
         )
 
         return EscalateInvoiceResponse(

@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.core.exceptions.notification_exc import (
     NotificationAccessDeniedError,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.models.postgres.invoices import Invoice
 from src.data.repositories.invoice_ownership_repo import (
     InvoiceOwnershipRepository,
@@ -196,13 +197,16 @@ class NotificationService:
             invoice_id,
         )
 
-        await self.notification_repo.create(
+        row = await self.notification_repo.create(
             user_id=associate_id,
             invoice_id=invoice_id,
             title="Invoice Assigned",
             message=(
                 f"Invoice {display_number} requires your review."
             ),
+        )
+        self._schedule_notification_sse(
+            row,
         )
 
     async def _create_invoice_escalated_notifications(
@@ -216,7 +220,7 @@ class NotificationService:
             invoice_id,
         )
 
-        await self.notification_repo.create(
+        manager_row = await self.notification_repo.create(
             user_id=manager_id,
             invoice_id=invoice_id,
             title="Invoice Escalated",
@@ -225,11 +229,14 @@ class NotificationService:
                 "for review."
             ),
         )
+        self._schedule_notification_sse(
+            manager_row,
+        )
 
         if associate_id is None:
             return
 
-        await self.notification_repo.create(
+        associate_row = await self.notification_repo.create(
             user_id=associate_id,
             invoice_id=invoice_id,
             title="Invoice Escalated",
@@ -237,6 +244,9 @@ class NotificationService:
                 f"Ownership of Invoice {display_number} has been "
                 "transferred to Finance Manager for review."
             ),
+        )
+        self._schedule_notification_sse(
+            associate_row,
         )
 
     async def _create_ownership_claimed_notification(
@@ -249,13 +259,16 @@ class NotificationService:
             invoice_id,
         )
 
-        await self.notification_repo.create(
+        row = await self.notification_repo.create(
             user_id=manager_id,
             invoice_id=invoice_id,
             title="Invoice Assigned",
             message=(
                 f"You are now responsible for Invoice {display_number}."
             ),
+        )
+        self._schedule_notification_sse(
+            row,
         )
 
     async def _create_clarification_sent_notification(
@@ -273,7 +286,7 @@ class NotificationService:
             invoice_id,
         )
 
-        await self.notification_repo.create(
+        row = await self.notification_repo.create(
             user_id=owner_id,
             invoice_id=invoice_id,
             title="Clarification Sent",
@@ -281,6 +294,9 @@ class NotificationService:
                 f"Clarification request sent to vendor for Invoice "
                 f"{display_number}."
             ),
+        )
+        self._schedule_notification_sse(
+            row,
         )
 
     async def _create_invoice_approved_notification(
@@ -298,7 +314,7 @@ class NotificationService:
             invoice_id,
         )
 
-        await self.notification_repo.create(
+        row = await self.notification_repo.create(
             user_id=owner_id,
             invoice_id=invoice_id,
             title="Invoice Approved",
@@ -306,6 +322,9 @@ class NotificationService:
                 f"Invoice {display_number} has been approved and moved "
                 "to Ready To Pay."
             ),
+        )
+        self._schedule_notification_sse(
+            row,
         )
 
     async def _create_invoice_rejected_notification(
@@ -323,13 +342,16 @@ class NotificationService:
             invoice_id,
         )
 
-        await self.notification_repo.create(
+        row = await self.notification_repo.create(
             user_id=owner_id,
             invoice_id=invoice_id,
             title="Invoice Rejected",
             message=(
                 f"Invoice {display_number} has been rejected."
             ),
+        )
+        self._schedule_notification_sse(
+            row,
         )
 
     async def _resolve_invoice_owner_user_id(
@@ -403,6 +425,18 @@ class NotificationService:
                 action,
                 invoice_id,
             )
+
+    @staticmethod
+    def _schedule_notification_sse(
+        row: NotificationRow,
+    ) -> None:
+        SSEEventPublisher.schedule_notification_created(
+            notification_id=row.id,
+            user_id=row.user_id,
+            title=row.title,
+            message=row.message,
+            invoice_id=row.invoice_id,
+        )
 
     @staticmethod
     def _map_notification_row(
