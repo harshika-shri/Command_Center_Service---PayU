@@ -1,23 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import (
     get_db_session,
     require_roles,
 )
-from src.core.services.approve_invoice_service import (
-    ApproveInvoiceService,
-)
-from src.core.services.clarification_draft_service import (
-    ClarificationDraftService,
-)
-from src.core.services.clarification_email_service import (
-    ClarificationEmailService,
-)
-from src.core.services.escalate_invoice_service import (
-    EscalateInvoiceService,
+from src.api.rest.routes.invoice_roles import (
+    INVOICE_REVIEW_ROLES,
 )
 from src.core.services.invoice_extraction_service import (
     InvoiceExtractionService,
@@ -37,21 +28,7 @@ from src.core.services.line_allocation_candidate_service import (
 from src.core.services.po_candidate_service import (
     POCandidateService,
 )
-from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
-from src.schemas.approval_schema import (
-    ApproveInvoiceRequest,
-    ApproveInvoiceResponse,
-)
-from src.schemas.clarification_schema import (
-    ClarificationDraftResponse,
-    SendClarificationRequest,
-    SendClarificationResponse,
-)
-from src.schemas.escalation_schema import (
-    EscalateInvoiceRequest,
-    EscalateInvoiceResponse,
-)
 from src.schemas.invoice_review_schema import (
     InvoiceExtractionResponse,
     InvoiceHeaderResponse,
@@ -64,15 +41,6 @@ from src.schemas.invoice_review_schema import (
 router = APIRouter(
     prefix="/invoices",
     tags=["Invoices"],
-)
-
-INVOICE_REVIEW_ROLES = (
-    UserRole.FINANCE_ASSOCIATE,
-    UserRole.FINANCE_MANAGER,
-)
-
-ESCALATION_ROLES = (
-    UserRole.FINANCE_ASSOCIATE,
 )
 
 
@@ -217,128 +185,4 @@ async def get_invoice_review(
 
     return await service.get_review(
         invoice_id,
-    )
-
-
-@router.post(
-    "/{invoice_id}/approve",
-    response_model=ApproveInvoiceResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def approve_invoice(
-    invoice_id: UUID,
-    request: ApproveInvoiceRequest,
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-    current_user: User = Depends(
-        require_roles(
-            *INVOICE_REVIEW_ROLES,
-        ),
-    ),
-) -> ApproveInvoiceResponse:
-    if request.approved_by != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="approved_by must match the authenticated user.",
-        )
-
-    service = ApproveInvoiceService(
-        db,
-    )
-
-    return await service.approve_invoice(
-        invoice_id,
-        request,
-    )
-
-
-@router.post(
-    "/{invoice_id}/escalate",
-    response_model=EscalateInvoiceResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def escalate_invoice(
-    invoice_id: UUID,
-    request: EscalateInvoiceRequest,
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-    current_user: User = Depends(
-        require_roles(
-            *ESCALATION_ROLES,
-        ),
-    ),
-) -> EscalateInvoiceResponse:
-    if request.escalated_by != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="escalated_by must match the authenticated user.",
-        )
-
-    service = EscalateInvoiceService(
-        db,
-    )
-
-    return await service.escalate_invoice(
-        invoice_id,
-        request,
-    )
-
-
-@router.post(
-    "/{invoice_id}/clarification-draft",
-    response_model=ClarificationDraftResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def generate_clarification_draft(
-    invoice_id: UUID,
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-    _: User = Depends(
-        require_roles(
-            *INVOICE_REVIEW_ROLES,
-        ),
-    ),
-) -> ClarificationDraftResponse:
-    service = ClarificationDraftService(
-        db,
-    )
-
-    return await service.generate_draft(
-        invoice_id,
-    )
-
-
-@router.post(
-    "/{invoice_id}/clarification-send",
-    response_model=SendClarificationResponse,
-    status_code=status.HTTP_200_OK,
-)
-async def send_clarification_email(
-    invoice_id: UUID,
-    request: SendClarificationRequest,
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-    current_user: User = Depends(
-        require_roles(
-            *INVOICE_REVIEW_ROLES,
-        ),
-    ),
-) -> SendClarificationResponse:
-    if request.sent_by != current_user.id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="sent_by must match the authenticated user.",
-        )
-
-    service = ClarificationEmailService(
-        db,
-    )
-
-    return await service.send_clarification(
-        invoice_id,
-        request,
     )

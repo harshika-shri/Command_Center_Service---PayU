@@ -85,3 +85,19 @@ def is_eligible_for_clarification(
         invoice_status == InvoiceStatus.UNDER_REVIEW
         and validation_outcome in _NEEDS_REVIEW_OUTCOMES
     )
+
+
+def is_eligible_for_business_rejection(
+    invoice_status: InvoiceStatus | None,
+) -> bool:
+    return invoice_status in (
+        InvoiceStatus.UNDER_REVIEW,
+        InvoiceStatus.ESCALATED,
+    )
+
+
+def is_rejected_for_vendor_communication(
+    invoice_status: InvoiceStatus | None,
+) -> bool:
+    return invoice_status == InvoiceStatus.REJECTED
+

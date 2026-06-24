@@ -56,6 +56,23 @@ class Settings(BaseSettings):
         validation_alias="SENDGRID_FROM_EMAIL",
     )
 
+    GROQ_API_KEY: str = Field(
+        default="",
+        validation_alias="GROQ_API_KEY",
+    )
+    GROQ_API_BASE_URL: str = Field(
+        default="https://api.groq.com/openai/v1",
+        validation_alias="GROQ_API_BASE_URL",
+    )
+    GROQ_LLM_MODEL: str = Field(
+        default="qwen/qwen3.6-27b",
+        validation_alias="GROQ_LLM_MODEL",
+    )
+    GROQ_LLM_MAX_TOKENS: int = Field(
+        default=2048,
+        validation_alias="GROQ_LLM_MAX_TOKENS",
+    )
+
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
         if not self.DATABASE_URL:
