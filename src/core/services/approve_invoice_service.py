@@ -24,6 +24,7 @@ from src.core.services.invoice_ownership_service import (
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.invoice_workflow_buckets import (
     is_ready_for_approval,
 )
@@ -163,6 +164,14 @@ class ApproveInvoiceService:
 
         await self.notification_service.notify_invoice_approved(
             invoice_id,
+        )
+
+        await SSEEventPublisher.schedule_invoice_state_change(
+            self.approval_repo.session,
+            invoice_id=invoice_id,
+            invoice_status=InvoiceStatus.READY_TO_PAY,
+            validation_outcome=snapshot.validation_outcome
+            or InvoiceValidationOutcome.APPROVED,
         )
 
         return ApproveInvoiceResponse(

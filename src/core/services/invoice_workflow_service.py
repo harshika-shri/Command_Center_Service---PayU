@@ -17,6 +17,7 @@ from src.core.services.audit_log_service import (
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.validation_workflow_mapping import (
     WORKFLOW_TRANSITIONS,
     WorkflowTransition,
@@ -126,6 +127,13 @@ class InvoiceWorkflowService:
 
         await self.notification_service.notify_invoice_assigned(
             event.invoice_id,
+        )
+
+        await SSEEventPublisher.schedule_invoice_state_change(
+            self.invoice_repo.session,
+            invoice_id=event.invoice_id,
+            invoice_status=transition.target_status,
+            validation_outcome=transition.target_validation_outcome,
         )
 
         return WorkflowProcessingResult(

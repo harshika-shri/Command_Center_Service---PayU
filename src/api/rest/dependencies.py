@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.security.jwt_provider import jwt_provider
 from src.core.security.role_utils import parse_user_role
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.clients.postgres_client import get_session_factory
 from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
@@ -26,9 +27,11 @@ async def get_db_session() -> AsyncGenerator[AsyncSession, None]:
             yield session
 
             await session.commit()
+            await SSEEventPublisher.flush()
 
         except Exception:
             await session.rollback()
+            SSEEventPublisher.clear_pending()
             raise
 
 

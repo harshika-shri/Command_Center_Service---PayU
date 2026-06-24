@@ -11,6 +11,7 @@ from src.config.settings import settings
 from src.core.services.validation_event_handler_service import (
     ValidationEventHandlerService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.clients.postgres_client import (
     get_session_factory,
 )
@@ -147,6 +148,7 @@ class ValidationStreamConsumer:
                         fields=fields,
                     )
                     await session.commit()
+                    await SSEEventPublisher.flush()
 
                 logger.info(
                     "Processed validation stream message "
@@ -163,6 +165,8 @@ class ValidationStreamConsumer:
                 )
                 return
             except Exception as error:
+                SSEEventPublisher.clear_pending()
+
                 if self._handler.should_acknowledge_without_retry(
                     error,
                 ):
