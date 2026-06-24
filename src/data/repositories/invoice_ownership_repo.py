@@ -1,15 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import ColumnElement, exists, func, select, union
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import ColumnElement, exists, func, select, union, update
 from sqlalchemy.orm import aliased
 
-from src.core.exceptions.access_exc import (
-    InvoiceAccessDeniedError,
-)
 from src.data.models.postgres.enums import (
+    InvoiceStatus,
+    InvoiceValidationOutcome,
     POResolutionCandidateType,
 )
 from src.data.models.postgres.invoice_po_mapping import (
@@ -21,31 +20,66 @@ from src.data.models.postgres.invoice_po_resolution_groups import (
 )
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.purchase_orders import PurchaseOrder
+from src.data.repositories.base_repo import BaseRepository
 
 _RESOLVED_CANDIDATE_TYPES = (
     POResolutionCandidateType.RESOLVED,
     POResolutionCandidateType.RECOVERED,
 )
 
+_NEEDS_REVIEW_OUTCOMES = (
+    InvoiceValidationOutcome.PENDING_REVIEW,
+    InvoiceValidationOutcome.REJECTED,
+)
 
-class OwnershipResolverService:
-    def __init__(
-        self,
-        session: AsyncSession,
-    ) -> None:
-        self.session = session
 
-    async def is_invoice_owned_by(
+@dataclass(frozen=True, slots=True)
+class InvoiceOwnershipSnapshot:
+    invoice_id: UUID
+    invoice_status: InvoiceStatus | None
+    validation_outcome: InvoiceValidationOutcome | None
+    assigned_manager_id: UUID | None
+
+
+class InvoiceOwnershipRepository(BaseRepository):
+    async def get_ownership_snapshot(
         self,
         invoice_id: UUID,
+    ) -> InvoiceOwnershipSnapshot | None:
+        result = await self.execute(
+            select(
+                Invoice.id,
+                Invoice.invoice_status,
+                Invoice.validation_outcome,
+                Invoice.assigned_manager_id,
+            ).where(
+                Invoice.id == invoice_id,
+            ),
+        )
+        row = result.one_or_none()
+
+        if row is None:
+            return None
+
+        return InvoiceOwnershipSnapshot(
+            invoice_id=row.id,
+            invoice_status=row.invoice_status,
+            validation_outcome=row.validation_outcome,
+            assigned_manager_id=row.assigned_manager_id,
+        )
+
+    async def is_associate_owner(
+        self,
+        *,
         associate_id: UUID,
+        invoice_id: UUID,
     ) -> bool:
-        result = await self.session.execute(
+        result = await self.execute(
             select(
                 1,
             ).where(
                 Invoice.id == invoice_id,
-                self._invoice_owned_by_filter(
+                self._associate_ownership_filter(
                     associate_id,
                 ),
             ),
@@ -53,40 +87,95 @@ class OwnershipResolverService:
 
         return result.scalar_one_or_none() is not None
 
-    async def ensure_invoice_owned_by(
+    async def has_associate_ownership(
         self,
         invoice_id: UUID,
-        associate_id: UUID,
-    ) -> None:
-        if not await self.is_invoice_owned_by(
-            invoice_id,
-            associate_id,
-        ):
-            raise InvoiceAccessDeniedError()
-
-    @staticmethod
-    def _invoice_owned_by_filter(
-        associate_id: UUID,
-    ) -> ColumnElement[bool]:
-        owned_invoice_ids = (
-            OwnershipResolverService._owned_invoice_ids_subquery(
-                associate_id,
-            )
+    ) -> bool:
+        result = await self.execute(
+            select(
+                1,
+            ).where(
+                Invoice.id == invoice_id,
+                Invoice.id.in_(
+                    select(
+                        self._owned_invoice_ids_subquery().c.invoice_id,
+                    ),
+                ),
+            ),
         )
 
-        return Invoice.id.in_(
-            select(
-                owned_invoice_ids.c.invoice_id,
+        return result.scalar_one_or_none() is not None
+
+    async def assign_manager(
+        self,
+        *,
+        invoice_id: UUID,
+        manager_id: UUID,
+    ) -> None:
+        await self.execute(
+            update(Invoice)
+            .where(
+                Invoice.id == invoice_id,
+            )
+            .values(
+                assigned_manager_id=manager_id,
+                assigned_at=func.now(),
             ),
         )
 
     @staticmethod
-    def _owned_invoice_ids_subquery(
+    def associate_ownership_filter(
         associate_id: UUID,
-    ):
-        po_owned_by_associate = (
-            PurchaseOrder.uploaded_by == associate_id
+    ) -> ColumnElement[bool]:
+        return Invoice.id.in_(
+            select(
+                InvoiceOwnershipRepository._owned_invoice_ids_subquery(
+                    associate_id,
+                ).c.invoice_id,
+            ),
         )
+
+    @staticmethod
+    def _associate_ownership_filter(
+        associate_id: UUID,
+    ) -> ColumnElement[bool]:
+        return InvoiceOwnershipRepository.associate_ownership_filter(
+            associate_id,
+        )
+
+    @staticmethod
+    def unassigned_queue_filter() -> ColumnElement[bool]:
+        return (
+            (Invoice.invoice_status == InvoiceStatus.UNDER_REVIEW)
+            & (
+                Invoice.validation_outcome.in_(
+                    _NEEDS_REVIEW_OUTCOMES,
+                )
+            )
+            & (Invoice.assigned_manager_id.is_(None))
+            & (
+                ~Invoice.id.in_(
+                    select(
+                        InvoiceOwnershipRepository._owned_invoice_ids_subquery().c.invoice_id,
+                    ),
+                )
+            )
+        )
+
+    @staticmethod
+    def manager_assigned_filter(
+        manager_id: UUID,
+    ) -> ColumnElement[bool]:
+        return Invoice.assigned_manager_id == manager_id
+
+    @staticmethod
+    def _owned_invoice_ids_subquery(
+        associate_id: UUID | None = None,
+    ):
+        if associate_id is not None:
+            po_filter = PurchaseOrder.uploaded_by == associate_id
+        else:
+            po_filter = PurchaseOrder.uploaded_by.is_not(None)
 
         from_mapping = (
             select(
@@ -99,7 +188,7 @@ class OwnershipResolverService:
                 InvoicePOMapping.po_id == PurchaseOrder.id,
             )
             .where(
-                po_owned_by_associate,
+                po_filter,
             )
         )
 
@@ -119,7 +208,7 @@ class OwnershipResolverService:
                 InvoicePOResolutionGroupItem.po_id == PurchaseOrder.id,
             )
             .where(
-                po_owned_by_associate,
+                po_filter,
                 InvoicePOResolutionGroup.is_selected.is_(
                     True,
                 ),
@@ -165,7 +254,7 @@ class OwnershipResolverService:
                 InvoicePOResolutionGroupItem.po_id == PurchaseOrder.id,
             )
             .where(
-                po_owned_by_associate,
+                po_filter,
                 resolution_group.candidate_type.in_(
                     _RESOLVED_CANDIDATE_TYPES,
                 ),

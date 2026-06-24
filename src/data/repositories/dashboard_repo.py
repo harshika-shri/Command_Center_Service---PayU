@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, and_, func, select
 
 from src.core.workflow.invoice_workflow_buckets import (
     DashboardBucket,
@@ -37,14 +37,26 @@ class DashboardInvoiceRow:
     invoice_status: str | None
     rejection_reason: str | None
     escalated_to: UUID | None
+    assigned_manager_id: UUID | None
     created_at: datetime
 
 
 class DashboardRepository(BaseRepository):
-    async def get_summary_counts(self) -> DashboardSummaryCounts:
+    async def get_summary_counts(
+        self,
+        *,
+        extra_filter: ColumnElement[bool] | None = None,
+        bucket_extra_filters: dict[DashboardBucket, ColumnElement[bool]]
+        | None = None,
+    ) -> DashboardSummaryCounts:
+        bucket_extra_filters = bucket_extra_filters or {}
         counts = {
             bucket.value: await self._count_bucket(
                 bucket,
+                extra_filter=bucket_extra_filters.get(
+                    bucket,
+                    extra_filter,
+                ),
             )
             for bucket in DashboardBucket
         }
@@ -76,10 +88,17 @@ class DashboardRepository(BaseRepository):
         bucket: DashboardBucket,
         offset: int,
         limit: int,
+        extra_filter: ColumnElement[bool] | None = None,
     ) -> tuple[list[DashboardInvoiceRow], int]:
         bucket_filter = dashboard_bucket_filter(
             bucket,
         )
+
+        if extra_filter is not None:
+            bucket_filter = and_(
+                bucket_filter,
+                extra_filter,
+            )
 
         base_query = (
             select(
@@ -92,6 +111,7 @@ class DashboardRepository(BaseRepository):
                 Invoice.invoice_status,
                 Invoice.rejection_reason,
                 Invoice.escalated_to,
+                Invoice.assigned_manager_id,
                 Invoice.created_at,
             )
             .select_from(
@@ -152,6 +172,7 @@ class DashboardRepository(BaseRepository):
                 ),
                 rejection_reason=row.rejection_reason,
                 escalated_to=row.escalated_to,
+                assigned_manager_id=row.assigned_manager_id,
                 created_at=row.created_at,
             )
             for row in list_result.all()
@@ -162,7 +183,19 @@ class DashboardRepository(BaseRepository):
     async def _count_bucket(
         self,
         bucket: DashboardBucket,
+        *,
+        extra_filter: ColumnElement[bool] | None = None,
     ) -> int:
+        bucket_filter = dashboard_bucket_filter(
+            bucket,
+        )
+
+        if extra_filter is not None:
+            bucket_filter = and_(
+                bucket_filter,
+                extra_filter,
+            )
+
         result = await self.execute(
             select(
                 func.count(),
@@ -171,9 +204,7 @@ class DashboardRepository(BaseRepository):
                 Invoice,
             )
             .where(
-                dashboard_bucket_filter(
-                    bucket,
-                ),
+                bucket_filter,
             ),
         )
 

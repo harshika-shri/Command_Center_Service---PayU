@@ -25,6 +25,7 @@ class DashboardInvoiceListItem(BaseModel):
     invoice_status: str | None
     rejection_reason: str | None = None
     escalated_to: UUID | None = None
+    assigned_manager_id: UUID | None = None
     created_at: datetime
 
 

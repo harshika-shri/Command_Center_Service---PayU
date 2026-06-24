@@ -1,33 +1,37 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.services.dashboard_service import (
-    DashboardService,
+from src.core.exceptions.access_exc import (
+    InvoiceAccessDeniedError,
+)
+from src.core.services.invoice_ownership_service import (
+    InvoiceOwnershipService,
 )
 from src.core.services.invoice_review_service import (
     InvoiceReviewService,
 )
-from src.core.services.ownership_resolver_service import (
-    OwnershipResolverService,
-)
 from src.core.workflow.invoice_workflow_buckets import (
     DashboardBucket,
+)
+from src.data.models.postgres.enums import UserRole
+from src.data.repositories.dashboard_repo import (
+    DashboardInvoiceRow,
 )
 from src.data.repositories.finance_associate_repo import (
     FinanceAssociateRepository,
 )
 from src.schemas.dashboard_schema import (
+    DashboardInvoiceListItem,
     DashboardInvoiceListResponse,
     DashboardPaginationParams,
+    DashboardSummaryResponse,
 )
 from src.schemas.finance_associate_schema import (
-    FinanceAssociateSummaryResponse,
-)
-from src.schemas.invoice_review_schema import (
-    InvoiceReviewResponse,
+    FinanceAssociateReviewResponse,
 )
 
 
@@ -39,29 +43,28 @@ class FinanceAssociateService:
         self.finance_associate_repo = FinanceAssociateRepository(
             session,
         )
-        self.ownership_resolver = OwnershipResolverService(
+        self.review_service = InvoiceReviewService(
             session,
         )
-        self.invoice_review_service = InvoiceReviewService(
+        self.ownership_service = InvoiceOwnershipService(
             session,
         )
 
     async def get_summary(
         self,
         associate_id: UUID,
-    ) -> FinanceAssociateSummaryResponse:
-        counts = (
-            await self.finance_associate_repo.get_owned_summary_counts(
-                associate_id,
-            )
+    ) -> DashboardSummaryResponse:
+        counts = await self.finance_associate_repo.get_summary_counts(
+            associate_id,
         )
 
-        return FinanceAssociateSummaryResponse(
+        return DashboardSummaryResponse(
             ready_for_approval=counts.ready_for_approval,
             needs_review=counts.needs_review,
             escalated=counts.escalated,
             ready_to_pay=counts.ready_to_pay,
             rejected=counts.rejected,
+            total=counts.total,
         )
 
     async def list_ready_for_approval(
@@ -112,14 +115,27 @@ class FinanceAssociateService:
         self,
         associate_id: UUID,
         invoice_id: UUID,
-    ) -> InvoiceReviewResponse:
-        await self.ownership_resolver.ensure_invoice_owned_by(
+    ) -> FinanceAssociateReviewResponse:
+        if not await self.ownership_service.is_associate_owner(
+            associate_id=associate_id,
+            invoice_id=invoice_id,
+        ):
+            raise InvoiceAccessDeniedError(
+                "You do not have access to this invoice.",
+            )
+
+        review = await self.review_service.get_review(
             invoice_id,
-            associate_id,
+        )
+        can_take_action = await self.ownership_service.can_take_action(
+            user_id=associate_id,
+            user_role=UserRole.FINANCE_ASSOCIATE,
+            invoice_id=invoice_id,
         )
 
-        return await self.invoice_review_service.get_review(
-            invoice_id,
+        return FinanceAssociateReviewResponse(
+            review=review,
+            can_take_action=can_take_action,
         )
 
     async def _list_by_bucket(
@@ -130,7 +146,7 @@ class FinanceAssociateService:
         pagination: DashboardPaginationParams,
     ) -> DashboardInvoiceListResponse:
         rows, total_records = (
-            await self.finance_associate_repo.list_owned_invoices_by_bucket(
+            await self.finance_associate_repo.list_invoices_by_bucket(
                 associate_id=associate_id,
                 bucket=bucket,
                 offset=pagination.offset,
@@ -140,7 +156,7 @@ class FinanceAssociateService:
 
         return DashboardInvoiceListResponse(
             items=[
-                DashboardService._map_invoice_row(
+                self._map_invoice_row(
                     row,
                 )
                 for row in rows
@@ -148,4 +164,35 @@ class FinanceAssociateService:
             page=pagination.page,
             page_size=pagination.page_size,
             total_records=total_records,
+        )
+
+    @staticmethod
+    def _map_invoice_row(
+        row: DashboardInvoiceRow,
+    ) -> DashboardInvoiceListItem:
+        return DashboardInvoiceListItem(
+            invoice_id=row.invoice_id,
+            invoice_number=row.invoice_number,
+            invoice_date=row.invoice_date,
+            vendor_name=row.vendor_name,
+            total_amount=FinanceAssociateService._to_float(
+                row.total_amount,
+            ),
+            validation_outcome=row.validation_outcome,
+            invoice_status=row.invoice_status,
+            rejection_reason=row.rejection_reason,
+            escalated_to=row.escalated_to,
+            assigned_manager_id=row.assigned_manager_id,
+            created_at=row.created_at,
+        )
+
+    @staticmethod
+    def _to_float(
+        amount: Decimal | None,
+    ) -> float | None:
+        if amount is None:
+            return None
+
+        return float(
+            amount,
         )

@@ -52,7 +52,7 @@ async def get_dashboard_summary(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *DASHBOARD_ROLES,
         ),
@@ -62,7 +62,9 @@ async def get_dashboard_summary(
         db,
     )
 
-    return await service.get_summary()
+    return await service.get_summary(
+        current_user,
+    )
 
 
 @router.get(
@@ -76,7 +78,7 @@ async def list_ready_for_approval_invoices(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *DASHBOARD_ROLES,
         ),
@@ -88,6 +90,7 @@ async def list_ready_for_approval_invoices(
 
     return await service.list_ready_for_approval(
         pagination,
+        current_user,
     )
 
 
@@ -102,7 +105,7 @@ async def list_needs_review_invoices(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *DASHBOARD_ROLES,
         ),
@@ -114,6 +117,7 @@ async def list_needs_review_invoices(
 
     return await service.list_needs_review(
         pagination,
+        current_user,
     )
 
 
@@ -128,7 +132,7 @@ async def list_escalated_invoices(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *DASHBOARD_ROLES,
         ),
@@ -140,6 +144,7 @@ async def list_escalated_invoices(
 
     return await service.list_escalated(
         pagination,
+        current_user,
     )
 
 
@@ -154,7 +159,7 @@ async def list_ready_to_pay_invoices(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *DASHBOARD_ROLES,
         ),
@@ -166,6 +171,7 @@ async def list_ready_to_pay_invoices(
 
     return await service.list_ready_to_pay(
         pagination,
+        current_user,
     )
 
 
@@ -180,7 +186,7 @@ async def list_rejected_invoices(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *DASHBOARD_ROLES,
         ),
@@ -192,4 +198,5 @@ async def list_rejected_invoices(
 
     return await service.list_rejected(
         pagination,
+        current_user,
     )

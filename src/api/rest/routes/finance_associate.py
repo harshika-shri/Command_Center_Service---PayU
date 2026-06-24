@@ -17,10 +17,8 @@ from src.schemas.dashboard_schema import (
     DashboardPaginationParams,
 )
 from src.schemas.finance_associate_schema import (
-    FinanceAssociateSummaryResponse,
-)
-from src.schemas.invoice_review_schema import (
-    InvoiceReviewResponse,
+    FinanceAssociateDashboardSummaryResponse,
+    FinanceAssociateReviewResponse,
 )
 
 router = APIRouter(
@@ -52,9 +50,9 @@ def _pagination_params(
 
 @router.get(
     "/dashboard/summary",
-    response_model=FinanceAssociateSummaryResponse,
+    response_model=FinanceAssociateDashboardSummaryResponse,
 )
-async def get_finance_associate_dashboard_summary(
+async def get_finance_associate_summary(
     db: AsyncSession = Depends(
         get_db_session,
     ),
@@ -63,7 +61,7 @@ async def get_finance_associate_dashboard_summary(
             *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
-) -> FinanceAssociateSummaryResponse:
+) -> FinanceAssociateDashboardSummaryResponse:
     service = FinanceAssociateService(
         db,
     )
@@ -77,7 +75,7 @@ async def get_finance_associate_dashboard_summary(
     "/invoices/ready-for-approval",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_ready_for_approval_invoices(
+async def list_finance_associate_ready_for_approval(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -104,7 +102,7 @@ async def list_finance_associate_ready_for_approval_invoices(
     "/invoices/needs-review",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_needs_review_invoices(
+async def list_finance_associate_needs_review(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -131,7 +129,7 @@ async def list_finance_associate_needs_review_invoices(
     "/invoices/ready-to-pay",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_ready_to_pay_invoices(
+async def list_finance_associate_ready_to_pay(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -158,7 +156,7 @@ async def list_finance_associate_ready_to_pay_invoices(
     "/invoices/rejected",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_rejected_invoices(
+async def list_finance_associate_rejected(
     pagination: DashboardPaginationParams = Depends(
         _pagination_params,
     ),
@@ -183,7 +181,7 @@ async def list_finance_associate_rejected_invoices(
 
 @router.get(
     "/invoices/{invoice_id}/review",
-    response_model=InvoiceReviewResponse,
+    response_model=FinanceAssociateReviewResponse,
 )
 async def get_finance_associate_invoice_review(
     invoice_id: UUID,
@@ -195,7 +193,7 @@ async def get_finance_associate_invoice_review(
             *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
-) -> InvoiceReviewResponse:
+) -> FinanceAssociateReviewResponse:
     service = FinanceAssociateService(
         db,
     )

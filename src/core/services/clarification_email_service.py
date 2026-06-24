@@ -21,6 +21,9 @@ from src.core.services.dispute_communication_service import (
 from src.core.services.dispute_service import (
     DisputeService,
 )
+from src.core.services.invoice_ownership_service import (
+    InvoiceOwnershipService,
+)
 from src.core.services.sendgrid_service import (
     SendGridService,
 )
@@ -36,6 +39,9 @@ from src.data.models.postgres.enums import (
 )
 from src.data.repositories.clarification_repo import (
     ClarificationRepository,
+)
+from src.data.repositories.user_repo import (
+    UserRepository,
 )
 from src.schemas.clarification_schema import (
     SendClarificationRequest,
@@ -67,6 +73,12 @@ class ClarificationEmailService:
         )
         self.sendgrid_service = SendGridService()
         self.draft_builder = ClarificationDraftBuilder()
+        self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
+        self.user_repo = UserRepository(
+            session,
+        )
 
     async def send_clarification(
         self,
@@ -85,6 +97,21 @@ class ClarificationEmailService:
         current_status = self._validate_invoice_eligibility(
             invoice_status=snapshot.invoice_status,
             validation_outcome=snapshot.validation_outcome,
+        )
+
+        sending_user = await self.user_repo.get_user_by_id(
+            request.sent_by,
+        )
+
+        if sending_user is None:
+            raise ClarificationValidationError(
+                "Sending user must be an active user.",
+            )
+
+        await self.ownership_service.ensure_can_take_action(
+            user_id=request.sent_by,
+            user_role=sending_user.role,
+            invoice_id=invoice_id,
         )
 
         vendor_email = await self.clarification_repo.get_vendor_email(
