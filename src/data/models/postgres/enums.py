@@ -80,6 +80,12 @@ class ValidationIssueStatus(str, Enum):
     WAIVED = "waived"
 
 
+class InvoiceValidationDecision(str, Enum):
+    APPROVED_AND_READY_TO_PAY = "approved_and_ready_to_pay"
+    PARTIAL_APPROVE = "partial_approve"
+    REJECT = "reject"
+
+
 class InvoiceValidationOutcome(str, Enum):
     RESOLVED = "resolved"
     RECOVERED = "recovered"
