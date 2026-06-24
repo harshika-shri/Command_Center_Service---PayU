@@ -15,9 +15,9 @@ from src.data.models.postgres.users import User
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListResponse,
     DashboardPaginationParams,
-    DashboardSummaryResponse,
 )
 from src.schemas.finance_associate_schema import (
+    FinanceAssociateDashboardSummaryResponse,
     FinanceAssociateReviewResponse,
 )
 
@@ -50,7 +50,7 @@ def _pagination_params(
 
 @router.get(
     "/dashboard/summary",
-    response_model=DashboardSummaryResponse,
+    response_model=FinanceAssociateDashboardSummaryResponse,
 )
 async def get_finance_associate_summary(
     db: AsyncSession = Depends(
@@ -61,7 +61,7 @@ async def get_finance_associate_summary(
             *FINANCE_ASSOCIATE_ROLES,
         ),
     ),
-) -> DashboardSummaryResponse:
+) -> FinanceAssociateDashboardSummaryResponse:
     service = FinanceAssociateService(
         db,
     )

@@ -11,10 +11,20 @@ from src.schemas.invoice_review_schema import (
 )
 
 
+class FinanceAssociateSummaryResponse(BaseModel):
+    ready_for_approval: int
+    needs_review: int
+    escalated: int
+    ready_to_pay: int
+    rejected: int
+
+
 class FinanceAssociateReviewResponse(BaseModel):
     review: InvoiceReviewResponse
     can_take_action: bool
 
 
-FinanceAssociateSummaryResponse = DashboardSummaryResponse
 FinanceAssociateInvoiceListResponse = DashboardInvoiceListResponse
+
+# Dashboard summary includes an optional total count for shared dashboard reuse.
+FinanceAssociateDashboardSummaryResponse = DashboardSummaryResponse
