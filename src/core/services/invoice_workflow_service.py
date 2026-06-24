@@ -14,6 +14,9 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
 from src.core.workflow.validation_workflow_mapping import (
     WORKFLOW_TRANSITIONS,
     WorkflowTransition,
@@ -46,6 +49,9 @@ class InvoiceWorkflowService:
             session,
         )
         self.audit_log_service = AuditLogService(
+            session,
+        )
+        self.notification_service = NotificationService(
             session,
         )
 
@@ -116,6 +122,10 @@ class InvoiceWorkflowService:
             event.validation_outcome.value,
             previous_status,
             transition.target_status.value,
+        )
+
+        await self.notification_service.notify_invoice_assigned(
+            event.invoice_id,
         )
 
         return WorkflowProcessingResult(

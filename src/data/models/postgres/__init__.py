@@ -23,6 +23,7 @@ from .invoice_review_summaries import InvoiceReviewSummary
 from .invoice_self_checks import InvoiceSelfCheck
 from .invoice_validation_issues import InvoiceValidationIssue
 from .invoices import Invoice
+from .notifications import Notification
 from .po_line_items import POLineItem
 from .purchase_orders import PurchaseOrder
 from .users import User
