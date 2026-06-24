@@ -18,6 +18,9 @@ from src.core.services.audit_log_service import (
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_escalation,
 )
@@ -53,6 +56,9 @@ class EscalateInvoiceService:
             session,
         )
         self.user_repo = UserRepository(
+            session,
+        )
+        self.notification_service = NotificationService(
             session,
         )
 
@@ -98,6 +104,10 @@ class EscalateInvoiceService:
                 "Manager must be an active Finance Manager.",
             )
 
+        associate_id = await self.ownership_service.get_associate_owner_id(
+            invoice_id,
+        )
+
         await self.escalation_repo.escalate_invoice(
             invoice_id,
             request.manager_id,
@@ -112,6 +122,12 @@ class EscalateInvoiceService:
                 remarks=request.reason,
                 performed_by=request.escalated_by,
             ),
+        )
+
+        await self.notification_service.notify_invoice_escalated(
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
+            associate_id=associate_id,
         )
 
         return EscalateInvoiceResponse(

@@ -21,6 +21,9 @@ from src.core.services.audit_log_service import (
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
 from src.core.workflow.invoice_workflow_buckets import (
     is_ready_for_approval,
 )
@@ -64,6 +67,9 @@ class ApproveInvoiceService:
             session,
         )
         self.user_repo = UserRepository(
+            session,
+        )
+        self.notification_service = NotificationService(
             session,
         )
 
@@ -153,6 +159,10 @@ class ApproveInvoiceService:
                 remarks=remarks,
                 performed_by=request.approved_by,
             ),
+        )
+
+        await self.notification_service.notify_invoice_approved(
+            invoice_id,
         )
 
         return ApproveInvoiceResponse(

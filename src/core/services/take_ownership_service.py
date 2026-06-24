@@ -17,6 +17,9 @@ from src.core.services.audit_log_service import (
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
 from src.data.models.postgres.enums import (
     UserRole,
 )
@@ -49,6 +52,9 @@ class TakeOwnershipService:
             session,
         )
         self.audit_log_service = AuditLogService(
+            session,
+        )
+        self.notification_service = NotificationService(
             session,
         )
 
@@ -113,6 +119,11 @@ class TakeOwnershipService:
                 remarks="Finance Manager claimed invoice ownership.",
                 performed_by=request.manager_id,
             ),
+        )
+
+        await self.notification_service.notify_ownership_claimed(
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
         )
 
         return TakeOwnershipResponse(

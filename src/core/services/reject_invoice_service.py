@@ -18,6 +18,9 @@ from src.core.services.audit_log_service import (
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_business_rejection,
 )
@@ -53,6 +56,9 @@ class RejectInvoiceService:
             session,
         )
         self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
+        self.notification_service = NotificationService(
             session,
         )
 
@@ -110,6 +116,10 @@ class RejectInvoiceService:
                 remarks=rejection_reason,
                 performed_by=request.rejected_by,
             ),
+        )
+
+        await self.notification_service.notify_invoice_rejected(
+            invoice_id,
         )
 
         return RejectInvoiceResponse(
