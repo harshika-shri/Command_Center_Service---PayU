@@ -10,6 +10,12 @@ from src.api.rest.dependencies import (
 from src.core.services.approve_invoice_service import (
     ApproveInvoiceService,
 )
+from src.core.services.clarification_draft_service import (
+    ClarificationDraftService,
+)
+from src.core.services.clarification_email_service import (
+    ClarificationEmailService,
+)
 from src.core.services.escalate_invoice_service import (
     EscalateInvoiceService,
 )
@@ -36,6 +42,11 @@ from src.data.models.postgres.users import User
 from src.schemas.approval_schema import (
     ApproveInvoiceRequest,
     ApproveInvoiceResponse,
+)
+from src.schemas.clarification_schema import (
+    ClarificationDraftResponse,
+    SendClarificationRequest,
+    SendClarificationResponse,
 )
 from src.schemas.escalation_schema import (
     EscalateInvoiceRequest,
@@ -270,6 +281,64 @@ async def escalate_invoice(
     )
 
     return await service.escalate_invoice(
+        invoice_id,
+        request,
+    )
+
+
+@router.post(
+    "/{invoice_id}/clarification-draft",
+    response_model=ClarificationDraftResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def generate_clarification_draft(
+    invoice_id: UUID,
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    _: User = Depends(
+        require_roles(
+            *INVOICE_REVIEW_ROLES,
+        ),
+    ),
+) -> ClarificationDraftResponse:
+    service = ClarificationDraftService(
+        db,
+    )
+
+    return await service.generate_draft(
+        invoice_id,
+    )
+
+
+@router.post(
+    "/{invoice_id}/clarification-send",
+    response_model=SendClarificationResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def send_clarification_email(
+    invoice_id: UUID,
+    request: SendClarificationRequest,
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *INVOICE_REVIEW_ROLES,
+        ),
+    ),
+) -> SendClarificationResponse:
+    if request.sent_by != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="sent_by must match the authenticated user.",
+        )
+
+    service = ClarificationEmailService(
+        db,
+    )
+
+    return await service.send_clarification(
         invoice_id,
         request,
     )
