@@ -10,6 +10,9 @@ from src.api.rest.dependencies import (
 from src.core.services.approve_invoice_service import (
     ApproveInvoiceService,
 )
+from src.core.services.escalate_invoice_service import (
+    EscalateInvoiceService,
+)
 from src.core.services.invoice_extraction_service import (
     InvoiceExtractionService,
 )
@@ -34,6 +37,10 @@ from src.schemas.approval_schema import (
     ApproveInvoiceRequest,
     ApproveInvoiceResponse,
 )
+from src.schemas.escalation_schema import (
+    EscalateInvoiceRequest,
+    EscalateInvoiceResponse,
+)
 from src.schemas.invoice_review_schema import (
     InvoiceExtractionResponse,
     InvoiceHeaderResponse,
@@ -51,6 +58,10 @@ router = APIRouter(
 INVOICE_REVIEW_ROLES = (
     UserRole.FINANCE_ASSOCIATE,
     UserRole.FINANCE_MANAGER,
+)
+
+ESCALATION_ROLES = (
+    UserRole.FINANCE_ASSOCIATE,
 )
 
 
@@ -226,6 +237,39 @@ async def approve_invoice(
     )
 
     return await service.approve_invoice(
+        invoice_id,
+        request,
+    )
+
+
+@router.post(
+    "/{invoice_id}/escalate",
+    response_model=EscalateInvoiceResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def escalate_invoice(
+    invoice_id: UUID,
+    request: EscalateInvoiceRequest,
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *ESCALATION_ROLES,
+        ),
+    ),
+) -> EscalateInvoiceResponse:
+    if request.escalated_by != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="escalated_by must match the authenticated user.",
+        )
+
+    service = EscalateInvoiceService(
+        db,
+    )
+
+    return await service.escalate_invoice(
         invoice_id,
         request,
     )
