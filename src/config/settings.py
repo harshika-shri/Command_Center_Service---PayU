@@ -47,6 +47,15 @@ class Settings(BaseSettings):
         validation_alias="REDIS_STREAM_MAX_RETRIES",
     )
 
+    SENDGRID_API_KEY: str = Field(
+        default="",
+        validation_alias="SENDGRID_API_KEY",
+    )
+    SENDGRID_FROM_EMAIL: str = Field(
+        default="",
+        validation_alias="SENDGRID_FROM_EMAIL",
+    )
+
     @model_validator(mode="after")
     def build_database_url(self) -> "Settings":
         if not self.DATABASE_URL:
