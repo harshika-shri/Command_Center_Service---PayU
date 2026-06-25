@@ -15,6 +15,9 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.authorization_service import (
+    AuthorizationService,
+)
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
 )
@@ -57,6 +60,9 @@ class EscalateInvoiceService:
         self.ownership_service = InvoiceOwnershipService(
             session,
         )
+        self.authorization_service = AuthorizationService(
+            session,
+        )
         self.user_repo = UserRepository(
             session,
         )
@@ -91,7 +97,7 @@ class EscalateInvoiceService:
                 "Escalating user must be an active user.",
             )
 
-        await self.ownership_service.ensure_can_take_action(
+        await self.authorization_service.ensure_can_escalate(
             user_id=request.escalated_by,
             user_role=escalating_user.role,
             invoice_id=invoice_id,

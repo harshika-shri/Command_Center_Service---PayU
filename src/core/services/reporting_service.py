@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from datetime import date
-
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.data.repositories.reporting_repo import (
     ReportingRepository,
 )
+from src.schemas.list_query_schema import ReportFilterParams
 from src.schemas.reporting_schema import (
     AssociateWorkloadItem,
     ManagerWorkloadItem,
@@ -27,13 +26,10 @@ class ReportingService:
 
     async def get_summary(
         self,
-        *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilterParams,
     ) -> ReportSummaryResponse:
         counts = await self.reporting_repo.get_summary_counts(
-            start_date=start_date,
-            end_date=end_date,
+            filters=filters.to_filters(),
         )
 
         return ReportSummaryResponse(
@@ -46,13 +42,10 @@ class ReportingService:
 
     async def get_performance(
         self,
-        *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilterParams,
     ) -> ReportPerformanceResponse:
         metrics = await self.reporting_repo.get_performance_metrics(
-            start_date=start_date,
-            end_date=end_date,
+            filters=filters.to_filters(),
         )
 
         return ReportPerformanceResponse(
@@ -62,13 +55,10 @@ class ReportingService:
 
     async def get_vendor_summary(
         self,
-        *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilterParams,
     ) -> list[VendorSummaryItem]:
         rows = await self.reporting_repo.get_vendor_summary(
-            start_date=start_date,
-            end_date=end_date,
+            filters=filters.to_filters(),
         )
 
         return [
@@ -81,13 +71,10 @@ class ReportingService:
 
     async def get_associate_workload(
         self,
-        *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilterParams,
     ) -> list[AssociateWorkloadItem]:
         rows = await self.reporting_repo.get_associate_workload(
-            start_date=start_date,
-            end_date=end_date,
+            filters=filters.to_filters(),
         )
 
         return [
@@ -103,13 +90,10 @@ class ReportingService:
 
     async def get_manager_workload(
         self,
-        *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilterParams,
     ) -> list[ManagerWorkloadItem]:
         rows = await self.reporting_repo.get_manager_workload(
-            start_date=start_date,
-            end_date=end_date,
+            filters=filters.to_filters(),
         )
 
         return [

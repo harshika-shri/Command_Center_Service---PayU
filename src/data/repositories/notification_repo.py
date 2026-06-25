@@ -55,20 +55,46 @@ class NotificationRepository(BaseRepository):
     async def list_by_user(
         self,
         user_id: UUID,
-    ) -> list[NotificationRow]:
+        *,
+        offset: int,
+        limit: int,
+    ) -> tuple[list[NotificationRow], int]:
+        base_filter = Notification.user_id == user_id
+
+        count_result = await self.execute(
+            select(
+                func.count(),
+            )
+            .select_from(
+                Notification,
+            )
+            .where(
+                base_filter,
+            ),
+        )
+        total_records = int(
+            count_result.scalar_one(),
+        )
+
         result = await self.execute(
             select(
                 Notification,
             )
             .where(
-                Notification.user_id == user_id,
+                base_filter,
             )
             .order_by(
                 Notification.created_at.desc(),
+            )
+            .offset(
+                offset,
+            )
+            .limit(
+                limit,
             ),
         )
 
-        return [
+        rows = [
             NotificationRow(
                 id=notification.id,
                 user_id=notification.user_id,
@@ -80,6 +106,8 @@ class NotificationRepository(BaseRepository):
             )
             for notification in result.scalars().all()
         ]
+
+        return rows, total_records
 
     async def count_unread(
         self,

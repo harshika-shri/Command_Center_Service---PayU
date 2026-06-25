@@ -18,8 +18,8 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
-from src.core.services.invoice_ownership_service import (
-    InvoiceOwnershipService,
+from src.core.services.authorization_service import (
+    AuthorizationService,
 )
 from src.core.services.notification_service import (
     NotificationService,
@@ -64,7 +64,7 @@ class ApproveInvoiceService:
         self.audit_log_service = AuditLogService(
             session,
         )
-        self.ownership_service = InvoiceOwnershipService(
+        self.authorization_service = AuthorizationService(
             session,
         )
         self.user_repo = UserRepository(
@@ -102,7 +102,7 @@ class ApproveInvoiceService:
                 "Approving user must be an active user.",
             )
 
-        await self.ownership_service.ensure_can_approve(
+        await self.authorization_service.ensure_can_approve(
             user_id=request.approved_by,
             user_role=approving_user.role,
             invoice_id=invoice_id,

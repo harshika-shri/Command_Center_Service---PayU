@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
 
-from sqlalchemy import ColumnElement, and_, case, exists, func, select, true, union
+from sqlalchemy import ColumnElement, and_, case, exists, func, select, union
 from sqlalchemy.orm import aliased
 
 from src.data.models.postgres.audit_log import AuditLog
@@ -21,13 +20,13 @@ from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.purchase_orders import PurchaseOrder
 from src.data.models.postgres.users import User
 from src.data.models.postgres.vendor_master import VendorMaster
+from src.core.query.search_filter_builder import (
+    ReportFilters,
+    SearchFilterBuilder,
+)
 from src.data.repositories.base_repo import BaseRepository
 from src.data.repositories.invoice_ownership_repo import (
     InvoiceOwnershipRepository,
-)
-from src.schemas.reporting_schema import (
-    to_utc_end_exclusive,
-    to_utc_start,
 )
 
 _RESOLVED_CANDIDATE_TYPES = (
@@ -84,12 +83,10 @@ class ReportingRepository(BaseRepository):
     async def get_summary_counts(
         self,
         *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilters,
     ) -> ReportSummaryCounts:
-        date_filter = self._invoice_created_filter(
-            start_date,
-            end_date,
+        report_filter = SearchFilterBuilder.build_report_filters(
+            filters,
         )
 
         result = await self.execute(
@@ -132,7 +129,7 @@ class ReportingRepository(BaseRepository):
                 Invoice,
             )
             .where(
-                date_filter,
+                report_filter,
             ),
         )
         row = result.one()
@@ -158,12 +155,10 @@ class ReportingRepository(BaseRepository):
     async def get_performance_metrics(
         self,
         *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilters,
     ) -> ReportPerformanceMetrics:
-        date_filter = self._invoice_created_filter(
-            start_date,
-            end_date,
+        report_filter = SearchFilterBuilder.build_report_filters(
+            filters,
         )
 
         approval_result = await self.execute(
@@ -185,7 +180,7 @@ class ReportingRepository(BaseRepository):
             )
             .where(
                 AuditLog.action == _APPROVE_ACTION,
-                date_filter,
+                report_filter,
             ),
         )
         rejection_result = await self.execute(
@@ -207,7 +202,7 @@ class ReportingRepository(BaseRepository):
             )
             .where(
                 AuditLog.action == _REJECT_ACTION,
-                date_filter,
+                report_filter,
             ),
         )
 
@@ -223,12 +218,10 @@ class ReportingRepository(BaseRepository):
     async def get_vendor_summary(
         self,
         *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilters,
     ) -> list[VendorSummaryRow]:
-        date_filter = self._invoice_created_filter(
-            start_date,
-            end_date,
+        report_filter = SearchFilterBuilder.build_report_filters(
+            filters,
         )
 
         result = await self.execute(
@@ -251,7 +244,7 @@ class ReportingRepository(BaseRepository):
                 Invoice.vendor_id == VendorMaster.id,
             )
             .where(
-                date_filter,
+                report_filter,
             )
             .group_by(
                 VendorMaster.vendor_name,
@@ -281,14 +274,22 @@ class ReportingRepository(BaseRepository):
     async def get_associate_workload(
         self,
         *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilters,
     ) -> list[AssociateWorkloadRow]:
-        date_filter = self._invoice_created_filter(
-            start_date,
-            end_date,
+        report_filter = SearchFilterBuilder.build_report_filters(
+            filters,
         )
         pairs = self._invoice_associate_pairs_subquery()
+
+        associate_conditions: list[ColumnElement[bool]] = [
+            User.role == UserRole.FINANCE_ASSOCIATE,
+            report_filter,
+        ]
+
+        if filters.associate_id is not None:
+            associate_conditions.append(
+                User.id == filters.associate_id,
+            )
 
         result = await self.execute(
             select(
@@ -356,8 +357,9 @@ class ReportingRepository(BaseRepository):
                 pairs.c.associate_id == User.id,
             )
             .where(
-                User.role == UserRole.FINANCE_ASSOCIATE,
-                date_filter,
+                and_(
+                    *associate_conditions,
+                ),
             )
             .group_by(
                 User.id,
@@ -390,12 +392,10 @@ class ReportingRepository(BaseRepository):
     async def get_manager_workload(
         self,
         *,
-        start_date: date | None,
-        end_date: date | None,
+        filters: ReportFilters,
     ) -> list[ManagerWorkloadRow]:
-        date_filter = self._invoice_created_filter(
-            start_date,
-            end_date,
+        report_filter = SearchFilterBuilder.build_report_filters(
+            filters,
         )
         owned_invoice_ids = select(
             InvoiceOwnershipRepository._owned_invoice_ids_subquery().c.invoice_id,
@@ -411,7 +411,7 @@ class ReportingRepository(BaseRepository):
             .where(
                 Invoice.assigned_manager_id == User.id,
                 Invoice.invoice_status == InvoiceStatus.ESCALATED,
-                date_filter,
+                report_filter,
             )
             .correlate(
                 User,
@@ -431,7 +431,7 @@ class ReportingRepository(BaseRepository):
                 ~Invoice.id.in_(
                     owned_invoice_ids,
                 ),
-                date_filter,
+                report_filter,
             )
             .correlate(
                 User,
@@ -452,7 +452,7 @@ class ReportingRepository(BaseRepository):
             .where(
                 AuditLog.performed_by == User.id,
                 AuditLog.action == _APPROVE_ACTION,
-                date_filter,
+                report_filter,
             )
             .correlate(
                 User,
@@ -473,13 +473,22 @@ class ReportingRepository(BaseRepository):
             .where(
                 AuditLog.performed_by == User.id,
                 AuditLog.action == _REJECT_ACTION,
-                date_filter,
+                report_filter,
             )
             .correlate(
                 User,
             )
             .scalar_subquery()
         )
+
+        manager_conditions: list[ColumnElement[bool]] = [
+            User.role == UserRole.FINANCE_MANAGER,
+        ]
+
+        if filters.manager_id is not None:
+            manager_conditions.append(
+                User.id == filters.manager_id,
+            )
 
         result = await self.execute(
             select(
@@ -503,7 +512,9 @@ class ReportingRepository(BaseRepository):
                 User,
             )
             .where(
-                User.role == UserRole.FINANCE_MANAGER,
+                and_(
+                    *manager_conditions,
+                ),
             )
             .order_by(
                 User.name,
@@ -528,36 +539,6 @@ class ReportingRepository(BaseRepository):
             )
             for row in result.all()
         ]
-
-    @staticmethod
-    def _invoice_created_filter(
-        start_date: date | None,
-        end_date: date | None,
-    ) -> ColumnElement[bool]:
-        conditions: list[ColumnElement[bool]] = []
-
-        if start_date is not None:
-            conditions.append(
-                Invoice.created_at
-                >= to_utc_start(
-                    start_date,
-                ),
-            )
-
-        if end_date is not None:
-            conditions.append(
-                Invoice.created_at
-                < to_utc_end_exclusive(
-                    end_date,
-                ),
-            )
-
-        if not conditions:
-            return true()
-
-        return and_(
-            *conditions,
-        )
 
     @staticmethod
     def _invoice_associate_pairs_subquery():

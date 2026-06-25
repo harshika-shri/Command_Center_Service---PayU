@@ -7,6 +7,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.query.pagination_helper import PaginationHelper
 from src.core.exceptions.notification_exc import (
     NotificationAccessDeniedError,
 )
@@ -23,8 +24,10 @@ from src.schemas.notification_schema import (
     MarkAllNotificationsReadResponse,
     MarkNotificationReadResponse,
     NotificationItem,
+    NotificationListResponse,
     NotificationUnreadCountResponse,
 )
+from src.schemas.list_query_schema import NotificationListQueryParams
 
 logger = logging.getLogger(__name__)
 
@@ -44,17 +47,32 @@ class NotificationService:
     async def list_notifications(
         self,
         user_id: UUID,
-    ) -> list[NotificationItem]:
-        rows = await self.notification_repo.list_by_user(
+        query: NotificationListQueryParams,
+    ) -> NotificationListResponse:
+        rows, total_records = await self.notification_repo.list_by_user(
             user_id,
+            offset=query.offset,
+            limit=query.page_size,
+        )
+        metadata = PaginationHelper.build_metadata(
+            total_records=total_records,
+            current_page=query.page,
+            page_size=query.page_size,
         )
 
-        return [
-            self._map_notification_row(
-                row,
-            )
-            for row in rows
-        ]
+        return NotificationListResponse(
+            items=[
+                self._map_notification_row(
+                    row,
+                )
+                for row in rows
+            ],
+            total_records=metadata.total_records,
+            total_pages=metadata.total_pages,
+            current_page=metadata.current_page,
+            page_size=metadata.page_size,
+            page=metadata.current_page,
+        )
 
     async def get_unread_count(
         self,

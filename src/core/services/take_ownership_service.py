@@ -14,8 +14,8 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
-from src.core.services.invoice_ownership_service import (
-    InvoiceOwnershipService,
+from src.core.services.authorization_service import (
+    AuthorizationService,
 )
 from src.core.services.notification_service import (
     NotificationService,
@@ -46,7 +46,7 @@ class TakeOwnershipService:
         self.ownership_repo = InvoiceOwnershipRepository(
             session,
         )
-        self.ownership_service = InvoiceOwnershipService(
+        self.authorization_service = AuthorizationService(
             session,
         )
         self.user_repo = UserRepository(
@@ -86,17 +86,11 @@ class TakeOwnershipService:
                 "Only an active Finance Manager may claim invoice ownership.",
             )
 
-        if snapshot.assigned_manager_id is not None:
-            raise InvoiceAccessDeniedError(
-                "Invoice already has an assigned manager.",
-            )
-
-        if await self.ownership_repo.has_associate_ownership(
-            invoice_id,
-        ):
-            raise InvoiceAccessDeniedError(
-                "Invoice is already owned by a Finance Associate.",
-            )
+        await self.authorization_service.ensure_can_take_ownership(
+            user_id=request.manager_id,
+            user_role=UserRole.FINANCE_MANAGER,
+            invoice_id=invoice_id,
+        )
 
         await self.ownership_repo.assign_manager(
             invoice_id=invoice_id,
