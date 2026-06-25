@@ -60,7 +60,7 @@ class InvoiceWorkflowService:
         self,
         event: ValidationCompletedEvent,
     ) -> WorkflowProcessingResult:
-        transition = WORKFLOW_TRANSITIONS[event.validation_outcome]
+        transition = WORKFLOW_TRANSITIONS[event.event_type]
         snapshot = await self.invoice_repo.get_workflow_snapshot(
             event.invoice_id,
         )
@@ -83,9 +83,9 @@ class InvoiceWorkflowService:
         ):
             logger.info(
                 "Skipping duplicate validation event "
-                "invoice_id=%s outcome=%s current_status=%s",
+                "invoice_id=%s event_type=%s current_status=%s",
                 event.invoice_id,
-                event.validation_outcome.value,
+                event.event_type,
                 snapshot.invoice_status.value
                 if snapshot.invoice_status is not None
                 else None,
@@ -118,9 +118,9 @@ class InvoiceWorkflowService:
 
         logger.info(
             "Invoice workflow updated invoice_id=%s "
-            "outcome=%s old_status=%s new_status=%s",
+            "event_type=%s old_status=%s new_status=%s",
             event.invoice_id,
-            event.validation_outcome.value,
+            event.event_type,
             previous_status,
             transition.target_status.value,
         )
