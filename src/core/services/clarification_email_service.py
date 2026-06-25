@@ -21,8 +21,8 @@ from src.core.services.dispute_communication_service import (
 from src.core.services.dispute_service import (
     DisputeService,
 )
-from src.core.services.invoice_ownership_service import (
-    InvoiceOwnershipService,
+from src.core.services.authorization_service import (
+    AuthorizationService,
 )
 from src.core.services.notification_service import (
     NotificationService,
@@ -76,7 +76,7 @@ class ClarificationEmailService:
         )
         self.sendgrid_service = SendGridService()
         self.draft_builder = ClarificationDraftBuilder()
-        self.ownership_service = InvoiceOwnershipService(
+        self.authorization_service = AuthorizationService(
             session,
         )
         self.user_repo = UserRepository(
@@ -114,7 +114,7 @@ class ClarificationEmailService:
                 "Sending user must be an active user.",
             )
 
-        await self.ownership_service.ensure_can_take_action(
+        await self.authorization_service.ensure_can_clarify(
             user_id=request.sent_by,
             user_role=sending_user.role,
             invoice_id=invoice_id,

@@ -1,11 +1,14 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import (
     get_db_session,
     require_roles,
+)
+from src.api.rest.list_query_dependencies import (
+    invoice_list_query_params,
 )
 from src.core.services.finance_associate_service import (
     FinanceAssociateService,
@@ -14,12 +17,12 @@ from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListResponse,
-    DashboardPaginationParams,
 )
 from src.schemas.finance_associate_schema import (
     FinanceAssociateDashboardSummaryResponse,
     FinanceAssociateReviewResponse,
 )
+from src.schemas.list_query_schema import InvoiceListQueryParams
 
 router = APIRouter(
     prefix="/finance-associate",
@@ -29,23 +32,6 @@ router = APIRouter(
 FINANCE_ASSOCIATE_ROLES = (
     UserRole.FINANCE_ASSOCIATE,
 )
-
-
-def _pagination_params(
-    page: int = Query(
-        default=1,
-        ge=1,
-    ),
-    page_size: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-    ),
-) -> DashboardPaginationParams:
-    return DashboardPaginationParams(
-        page=page,
-        page_size=page_size,
-    )
 
 
 @router.get(
@@ -76,8 +62,8 @@ async def get_finance_associate_summary(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_ready_for_approval(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -94,7 +80,7 @@ async def list_finance_associate_ready_for_approval(
 
     return await service.list_ready_for_approval(
         current_user.id,
-        pagination,
+        query,
     )
 
 
@@ -103,8 +89,8 @@ async def list_finance_associate_ready_for_approval(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_needs_review(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -121,7 +107,7 @@ async def list_finance_associate_needs_review(
 
     return await service.list_needs_review(
         current_user.id,
-        pagination,
+        query,
     )
 
 
@@ -130,8 +116,8 @@ async def list_finance_associate_needs_review(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_ready_to_pay(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -148,7 +134,7 @@ async def list_finance_associate_ready_to_pay(
 
     return await service.list_ready_to_pay(
         current_user.id,
-        pagination,
+        query,
     )
 
 
@@ -157,8 +143,8 @@ async def list_finance_associate_ready_to_pay(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_rejected(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -175,7 +161,7 @@ async def list_finance_associate_rejected(
 
     return await service.list_rejected(
         current_user.id,
-        pagination,
+        query,
     )
 
 

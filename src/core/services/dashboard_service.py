@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import ColumnElement
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.core.query.pagination_helper import PaginationHelper
 from src.core.workflow.invoice_workflow_buckets import (
     DashboardBucket,
 )
@@ -13,6 +14,7 @@ from src.data.models.postgres.users import User
 from src.data.repositories.dashboard_repo import (
     DashboardInvoiceRow,
     DashboardRepository,
+    InvoiceListQueryOptions,
 )
 from src.data.repositories.invoice_ownership_repo import (
     InvoiceOwnershipRepository,
@@ -20,9 +22,9 @@ from src.data.repositories.invoice_ownership_repo import (
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListItem,
     DashboardInvoiceListResponse,
-    DashboardPaginationParams,
     DashboardSummaryResponse,
 )
+from src.schemas.list_query_schema import InvoiceListQueryParams
 
 
 class DashboardService:
@@ -55,56 +57,56 @@ class DashboardService:
 
     async def list_ready_for_approval(
         self,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
         current_user: User,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             bucket=DashboardBucket.READY_FOR_APPROVAL,
-            pagination=pagination,
+            query=query,
             current_user=current_user,
         )
 
     async def list_needs_review(
         self,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
         current_user: User,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             bucket=DashboardBucket.NEEDS_REVIEW,
-            pagination=pagination,
+            query=query,
             current_user=current_user,
         )
 
     async def list_escalated(
         self,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
         current_user: User,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             bucket=DashboardBucket.ESCALATED,
-            pagination=pagination,
+            query=query,
             current_user=current_user,
         )
 
     async def list_ready_to_pay(
         self,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
         current_user: User,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             bucket=DashboardBucket.READY_TO_PAY,
-            pagination=pagination,
+            query=query,
             current_user=current_user,
         )
 
     async def list_rejected(
         self,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
         current_user: User,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             bucket=DashboardBucket.REJECTED,
-            pagination=pagination,
+            query=query,
             current_user=current_user,
         )
 
@@ -153,14 +155,20 @@ class DashboardService:
         self,
         *,
         bucket: DashboardBucket,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
         current_user: User,
     ) -> DashboardInvoiceListResponse:
+        list_query = self.dashboard_repo.build_query_options(
+            filters=query.to_filters(),
+            offset=query.offset,
+            limit=query.page_size,
+            sort_by=query.sort_by,
+            sort_order=query.sort_order,
+        )
         rows, total_records = (
             await self.dashboard_repo.list_invoices_by_bucket(
                 bucket=bucket,
-                offset=pagination.offset,
-                limit=pagination.page_size,
+                query=list_query,
                 extra_filter=self._ownership_filter_for_bucket(
                     current_user=current_user,
                     bucket=bucket,
@@ -168,16 +176,37 @@ class DashboardService:
             )
         )
 
+        return self._build_list_response(
+            rows=rows,
+            total_records=total_records,
+            query=query,
+        )
+
+    @staticmethod
+    def _build_list_response(
+        *,
+        rows: list[DashboardInvoiceRow],
+        total_records: int,
+        query: InvoiceListQueryParams,
+    ) -> DashboardInvoiceListResponse:
+        metadata = PaginationHelper.build_metadata(
+            total_records=total_records,
+            current_page=query.page,
+            page_size=query.page_size,
+        )
+
         return DashboardInvoiceListResponse(
             items=[
-                self._map_invoice_row(
+                DashboardService._map_invoice_row(
                     row,
                 )
                 for row in rows
             ],
-            page=pagination.page,
-            page_size=pagination.page_size,
-            total_records=total_records,
+            total_records=metadata.total_records,
+            total_pages=metadata.total_pages,
+            current_page=metadata.current_page,
+            page_size=metadata.page_size,
+            page=metadata.current_page,
         )
 
     @staticmethod

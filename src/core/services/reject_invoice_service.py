@@ -15,8 +15,8 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
-from src.core.services.invoice_ownership_service import (
-    InvoiceOwnershipService,
+from src.core.services.authorization_service import (
+    AuthorizationService,
 )
 from src.core.services.notification_service import (
     NotificationService,
@@ -57,7 +57,7 @@ class RejectInvoiceService:
         self.audit_log_service = AuditLogService(
             session,
         )
-        self.ownership_service = InvoiceOwnershipService(
+        self.authorization_service = AuthorizationService(
             session,
         )
         self.notification_service = NotificationService(
@@ -91,7 +91,7 @@ class RejectInvoiceService:
                 "Rejecting user must be an active user.",
             )
 
-        await self.ownership_service.ensure_can_take_action(
+        await self.authorization_service.ensure_can_reject(
             user_id=request.rejected_by,
             user_role=rejecting_user.role,
             invoice_id=invoice_id,

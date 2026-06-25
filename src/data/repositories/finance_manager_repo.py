@@ -10,6 +10,7 @@ from src.core.workflow.invoice_workflow_buckets import (
 from src.data.repositories.dashboard_repo import (
     DashboardInvoiceRow,
     DashboardRepository,
+    InvoiceListQueryOptions,
 )
 
 
@@ -56,14 +57,12 @@ class FinanceManagerRepository(DashboardRepository):
         *,
         manager_id: UUID,
         bucket: FinanceManagerBucket,
-        offset: int,
-        limit: int,
+        query: InvoiceListQueryOptions,
     ) -> tuple[list[DashboardInvoiceRow], int]:
         return await self.list_invoices_by_custom_filter(
             bucket_filter=finance_manager_bucket_filter(
                 bucket,
                 manager_id,
             ),
-            offset=offset,
-            limit=limit,
+            query=query,
         )

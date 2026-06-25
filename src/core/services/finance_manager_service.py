@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exceptions.workflow_exc import (
-    InvoiceNotFoundError,
+from src.core.services.dashboard_service import (
+    DashboardService,
 )
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
@@ -18,9 +17,6 @@ from src.core.workflow.invoice_workflow_buckets import (
     FinanceManagerBucket,
 )
 from src.data.models.postgres.enums import UserRole
-from src.data.repositories.dashboard_repo import (
-    DashboardInvoiceRow,
-)
 from src.data.repositories.finance_manager_repo import (
     FinanceManagerRepository,
 )
@@ -31,9 +27,7 @@ from src.data.repositories.invoice_ownership_repo import (
     InvoiceOwnershipRepository,
 )
 from src.schemas.dashboard_schema import (
-    DashboardInvoiceListItem,
     DashboardInvoiceListResponse,
-    DashboardPaginationParams,
 )
 from src.schemas.finance_manager_schema import (
     CommunicationTimelineItem,
@@ -42,6 +36,7 @@ from src.schemas.finance_manager_schema import (
     FinanceManagerSummaryResponse,
     InvoiceOwnershipDetails,
 )
+from src.schemas.list_query_schema import InvoiceListQueryParams
 
 
 class FinanceManagerService:
@@ -83,45 +78,45 @@ class FinanceManagerService:
     async def list_my_escalated(
         self,
         manager_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             manager_id=manager_id,
             bucket=FinanceManagerBucket.MY_ESCALATED,
-            pagination=pagination,
+            query=query,
         )
 
     async def list_unassigned(
         self,
         manager_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             manager_id=manager_id,
             bucket=FinanceManagerBucket.UNASSIGNED_QUEUE,
-            pagination=pagination,
+            query=query,
         )
 
     async def list_my_claimed(
         self,
         manager_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             manager_id=manager_id,
             bucket=FinanceManagerBucket.MY_CLAIMED_UNRESOLVED,
-            pagination=pagination,
+            query=query,
         )
 
     async def list_rejected(
         self,
         manager_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             manager_id=manager_id,
             bucket=FinanceManagerBucket.REJECTED,
-            pagination=pagination,
+            query=query,
         )
 
     async def get_review(
@@ -134,6 +129,10 @@ class FinanceManagerService:
         )
 
         if ownership_details is None:
+            from src.core.exceptions.workflow_exc import (
+                InvoiceNotFoundError,
+            )
+
             raise InvoiceNotFoundError(
                 str(invoice_id),
             )
@@ -210,56 +209,25 @@ class FinanceManagerService:
         *,
         manager_id: UUID,
         bucket: FinanceManagerBucket,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
+        list_query = self.finance_manager_repo.build_query_options(
+            filters=query.to_filters(),
+            offset=query.offset,
+            limit=query.page_size,
+            sort_by=query.sort_by,
+            sort_order=query.sort_order,
+        )
         rows, total_records = (
             await self.finance_manager_repo.list_invoices_by_bucket(
                 manager_id=manager_id,
                 bucket=bucket,
-                offset=pagination.offset,
-                limit=pagination.page_size,
+                query=list_query,
             )
         )
 
-        return DashboardInvoiceListResponse(
-            items=[
-                self._map_invoice_row(
-                    row,
-                )
-                for row in rows
-            ],
-            page=pagination.page,
-            page_size=pagination.page_size,
+        return DashboardService._build_list_response(
+            rows=rows,
             total_records=total_records,
-        )
-
-    @staticmethod
-    def _map_invoice_row(
-        row: DashboardInvoiceRow,
-    ) -> DashboardInvoiceListItem:
-        return DashboardInvoiceListItem(
-            invoice_id=row.invoice_id,
-            invoice_number=row.invoice_number,
-            invoice_date=row.invoice_date,
-            vendor_name=row.vendor_name,
-            total_amount=FinanceManagerService._to_float(
-                row.total_amount,
-            ),
-            validation_outcome=row.validation_outcome,
-            invoice_status=row.invoice_status,
-            rejection_reason=row.rejection_reason,
-            escalated_to=row.escalated_to,
-            assigned_manager_id=row.assigned_manager_id,
-            created_at=row.created_at,
-        )
-
-    @staticmethod
-    def _to_float(
-        amount: Decimal | None,
-    ) -> float | None:
-        if amount is None:
-            return None
-
-        return float(
-            amount,
+            query=query,
         )
