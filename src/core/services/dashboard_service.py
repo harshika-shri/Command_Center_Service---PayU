@@ -165,6 +165,8 @@ class DashboardService:
                     current_user=current_user,
                     bucket=bucket,
                 ),
+                sort_by=pagination.sort_by,
+                sort_order=pagination.sort_order,
             )
         )
 

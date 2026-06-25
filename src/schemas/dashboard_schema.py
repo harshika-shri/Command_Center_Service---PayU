@@ -46,6 +46,8 @@ class DashboardPaginationParams(BaseModel):
         ge=1,
         le=100,
     )
+    sort_by: str | None = None
+    sort_order: str | None = None
 
     @property
     def offset(self) -> int:

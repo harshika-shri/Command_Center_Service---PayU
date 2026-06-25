@@ -37,10 +37,18 @@ def _pagination_params(
         ge=1,
         le=100,
     ),
+    sort_by: str | None = Query(
+        default=None,
+    ),
+    sort_order: str | None = Query(
+        default=None,
+    ),
 ) -> DashboardPaginationParams:
     return DashboardPaginationParams(
         page=page,
         page_size=page_size,
+        sort_by=sort_by,
+        sort_order=sort_order,
     )
 
 

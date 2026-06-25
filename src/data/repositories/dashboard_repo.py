@@ -7,6 +7,9 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, func, select
 
+from src.core.query.sorting_helper import (
+    SortingHelper,
+)
 from src.core.workflow.invoice_workflow_buckets import (
     DashboardBucket,
     dashboard_bucket_filter,
@@ -89,6 +92,8 @@ class DashboardRepository(BaseRepository):
         offset: int,
         limit: int,
         extra_filter: ColumnElement[bool] | None = None,
+        sort_by: str | None = None,
+        sort_order: str | None = None,
     ) -> tuple[list[DashboardInvoiceRow], int]:
         bucket_filter = dashboard_bucket_filter(
             bucket,
@@ -143,7 +148,10 @@ class DashboardRepository(BaseRepository):
 
         list_result = await self.execute(
             base_query.order_by(
-                Invoice.created_at.desc(),
+                SortingHelper.apply_sort(
+                    sort_by=sort_by,
+                    sort_order=sort_order,
+                ),
             )
             .offset(
                 offset,
