@@ -7,6 +7,10 @@ from uuid import UUID
 
 from sqlalchemy import ColumnElement, and_, func, select
 
+from src.core.query.search_filter_builder import (
+    InvoiceListFilters,
+    SearchFilterBuilder,
+)
 from src.core.query.sorting_helper import (
     SortingHelper,
 )
@@ -42,6 +46,15 @@ class DashboardInvoiceRow:
     escalated_to: UUID | None
     assigned_manager_id: UUID | None
     created_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class InvoiceListQueryOptions:
+    filters: InvoiceListFilters
+    offset: int
+    limit: int
+    sort_by: str | None = "created_at"
+    sort_order: str | None = "desc"
 
 
 class DashboardRepository(BaseRepository):
@@ -89,8 +102,7 @@ class DashboardRepository(BaseRepository):
         self,
         *,
         bucket: DashboardBucket,
-        offset: int,
-        limit: int,
+        query: InvoiceListQueryOptions,
         extra_filter: ColumnElement[bool] | None = None,
         sort_by: str | None = None,
         sort_order: str | None = None,
@@ -99,13 +111,77 @@ class DashboardRepository(BaseRepository):
             bucket,
         )
 
-        if extra_filter is not None:
-            bucket_filter = and_(
-                bucket_filter,
-                extra_filter,
+        return await self._list_invoices(
+            base_filter=bucket_filter,
+            query=query,
+            extra_filter=extra_filter,
+        )
+
+    async def list_invoices_by_custom_filter(
+        self,
+        *,
+        bucket_filter: ColumnElement[bool],
+        query: InvoiceListQueryOptions,
+    ) -> tuple[list[DashboardInvoiceRow], int]:
+        return await self._list_invoices(
+            base_filter=bucket_filter,
+            query=query,
+        )
+
+    async def count_by_custom_filter(
+        self,
+        *,
+        bucket_filter: ColumnElement[bool],
+        filters: InvoiceListFilters | None = None,
+    ) -> int:
+        return await self._count_with_filter(
+            base_filter=bucket_filter,
+            filters=filters or InvoiceListFilters(),
+        )
+
+    async def _list_invoices(
+        self,
+        *,
+        base_filter: ColumnElement[bool],
+        query: InvoiceListQueryOptions,
+        extra_filter: ColumnElement[bool] | None = None,
+    ) -> tuple[list[DashboardInvoiceRow], int]:
+        combined_filter = self._combine_filters(
+            base_filter=base_filter,
+            filters=query.filters,
+            extra_filter=extra_filter,
+        )
+        requires_vendor_join = SearchFilterBuilder.requires_vendor_join(
+            query.filters,
+            sort_by=query.sort_by,
+        )
+
+        count_query = select(
+            func.count(
+                func.distinct(
+                    Invoice.id,
+                ),
+            ),
+        ).select_from(
+            Invoice,
+        )
+
+        if requires_vendor_join:
+            count_query = count_query.outerjoin(
+                VendorMaster,
+                Invoice.vendor_id == VendorMaster.id,
             )
 
-        base_query = (
+        count_result = await self.execute(
+            count_query.where(
+                combined_filter,
+            ),
+        )
+        total_records = int(
+            count_result.scalar_one(),
+        )
+
+        list_query = (
             select(
                 Invoice.id,
                 Invoice.invoice_number,
@@ -127,38 +203,24 @@ class DashboardRepository(BaseRepository):
                 Invoice.vendor_id == VendorMaster.id,
             )
             .where(
-                bucket_filter,
+                combined_filter,
             )
-        )
-
-        count_result = await self.execute(
-            select(
-                func.count(),
-            )
-            .select_from(
-                Invoice,
-            )
-            .where(
-                bucket_filter,
-            ),
-        )
-        total_records = int(
-            count_result.scalar_one(),
-        )
-
-        list_result = await self.execute(
-            base_query.order_by(
+            .order_by(
                 SortingHelper.apply_sort(
-                    sort_by=sort_by,
-                    sort_order=sort_order,
+                    sort_by=query.sort_by,
+                    sort_order=query.sort_order,
                 ),
             )
             .offset(
-                offset,
+                query.offset,
             )
             .limit(
-                limit,
-            ),
+                query.limit,
+            )
+        )
+
+        list_result = await self.execute(
+            list_query,
         )
 
         items = [
@@ -193,29 +255,96 @@ class DashboardRepository(BaseRepository):
         bucket: DashboardBucket,
         *,
         extra_filter: ColumnElement[bool] | None = None,
+        filters: InvoiceListFilters | None = None,
     ) -> int:
         bucket_filter = dashboard_bucket_filter(
             bucket,
         )
 
-        if extra_filter is not None:
-            bucket_filter = and_(
-                bucket_filter,
-                extra_filter,
+        return await self._count_with_filter(
+            base_filter=bucket_filter,
+            filters=filters or InvoiceListFilters(),
+            extra_filter=extra_filter,
+        )
+
+    async def _count_with_filter(
+        self,
+        *,
+        base_filter: ColumnElement[bool],
+        filters: InvoiceListFilters,
+        extra_filter: ColumnElement[bool] | None = None,
+    ) -> int:
+        combined_filter = self._combine_filters(
+            base_filter=base_filter,
+            filters=filters,
+            extra_filter=extra_filter,
+        )
+        requires_vendor_join = SearchFilterBuilder.requires_vendor_join(
+            filters,
+        )
+
+        count_query = select(
+            func.count(
+                func.distinct(
+                    Invoice.id,
+                ),
+            ),
+        ).select_from(
+            Invoice,
+        )
+
+        if requires_vendor_join:
+            count_query = count_query.outerjoin(
+                VendorMaster,
+                Invoice.vendor_id == VendorMaster.id,
             )
 
         result = await self.execute(
-            select(
-                func.count(),
-            )
-            .select_from(
-                Invoice,
-            )
-            .where(
-                bucket_filter,
+            count_query.where(
+                combined_filter,
             ),
         )
 
         return int(
             result.scalar_one(),
+        )
+
+    @staticmethod
+    def _combine_filters(
+        *,
+        base_filter: ColumnElement[bool],
+        filters: InvoiceListFilters,
+        extra_filter: ColumnElement[bool] | None = None,
+    ) -> ColumnElement[bool]:
+        conditions: list[ColumnElement[bool]] = [
+            base_filter,
+            SearchFilterBuilder.build_invoice_filters(
+                filters,
+            ),
+        ]
+
+        if extra_filter is not None:
+            conditions.append(
+                extra_filter,
+            )
+
+        return and_(
+            *conditions,
+        )
+
+    @staticmethod
+    def build_query_options(
+        *,
+        filters: InvoiceListFilters,
+        offset: int,
+        limit: int,
+        sort_by: str | None,
+        sort_order: str | None,
+    ) -> InvoiceListQueryOptions:
+        return InvoiceListQueryOptions(
+            filters=filters,
+            offset=offset,
+            limit=limit,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )

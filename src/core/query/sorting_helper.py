@@ -57,11 +57,9 @@ class SortingHelper:
                 order = SortOrder.DESC
 
         column = cls._SORT_COLUMNS[
-            field
+            field,
         ]
-        requires_vendor_join = (
-            field == InvoiceSortField.VENDOR_NAME
-        )
+        requires_vendor_join = field == InvoiceSortField.VENDOR_NAME
 
         if order == SortOrder.ASC:
             return column.asc(), requires_vendor_join

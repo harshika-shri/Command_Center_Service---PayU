@@ -52,6 +52,14 @@ class InvoiceOwnershipService:
 
         return snapshot.assigned_manager_id == manager_id
 
+    async def get_associate_owner_id(
+        self,
+        invoice_id: UUID,
+    ) -> UUID | None:
+        return await self.ownership_repo.get_associate_owner_id(
+            invoice_id,
+        )
+
     async def is_unassigned(
         self,
         invoice_id: UUID,

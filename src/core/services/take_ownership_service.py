@@ -14,9 +14,13 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
-from src.core.services.invoice_ownership_service import (
-    InvoiceOwnershipService,
+from src.core.services.authorization_service import (
+    AuthorizationService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.models.postgres.enums import (
     UserRole,
 )
@@ -42,13 +46,16 @@ class TakeOwnershipService:
         self.ownership_repo = InvoiceOwnershipRepository(
             session,
         )
-        self.ownership_service = InvoiceOwnershipService(
+        self.authorization_service = AuthorizationService(
             session,
         )
         self.user_repo = UserRepository(
             session,
         )
         self.audit_log_service = AuditLogService(
+            session,
+        )
+        self.notification_service = NotificationService(
             session,
         )
 
@@ -79,17 +86,11 @@ class TakeOwnershipService:
                 "Only an active Finance Manager may claim invoice ownership.",
             )
 
-        if snapshot.assigned_manager_id is not None:
-            raise InvoiceAccessDeniedError(
-                "Invoice already has an assigned manager.",
-            )
-
-        if await self.ownership_repo.has_associate_ownership(
-            invoice_id,
-        ):
-            raise InvoiceAccessDeniedError(
-                "Invoice is already owned by a Finance Associate.",
-            )
+        await self.authorization_service.ensure_can_take_ownership(
+            user_id=request.manager_id,
+            user_role=UserRole.FINANCE_MANAGER,
+            invoice_id=invoice_id,
+        )
 
         await self.ownership_repo.assign_manager(
             invoice_id=invoice_id,
@@ -113,6 +114,19 @@ class TakeOwnershipService:
                 remarks="Finance Manager claimed invoice ownership.",
                 performed_by=request.manager_id,
             ),
+        )
+
+        await self.notification_service.notify_ownership_claimed(
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
+        )
+
+        await SSEEventPublisher.schedule_take_ownership_events(
+            self.ownership_repo.session,
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
+            invoice_status=snapshot.invoice_status,
+            validation_outcome=snapshot.validation_outcome,
         )
 
         return TakeOwnershipResponse(

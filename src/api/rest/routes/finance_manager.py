@@ -10,45 +10,45 @@ from src.api.rest.dependencies import (
 from src.api.rest.list_query_dependencies import (
     invoice_list_query_params,
 )
-from src.core.services.finance_associate_service import (
-    FinanceAssociateService,
+from src.core.services.finance_manager_service import (
+    FinanceManagerService,
 )
 from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListResponse,
 )
-from src.schemas.finance_associate_schema import (
-    FinanceAssociateDashboardSummaryResponse,
-    FinanceAssociateReviewResponse,
+from src.schemas.finance_manager_schema import (
+    FinanceManagerReviewResponse,
+    FinanceManagerSummaryResponse,
 )
 from src.schemas.list_query_schema import InvoiceListQueryParams
 
 router = APIRouter(
-    prefix="/finance-associate",
-    tags=["Finance Associate"],
+    prefix="/finance-manager",
+    tags=["Finance Manager"],
 )
 
-FINANCE_ASSOCIATE_ROLES = (
-    UserRole.FINANCE_ASSOCIATE,
+FINANCE_MANAGER_ROLES = (
+    UserRole.FINANCE_MANAGER,
 )
 
 
 @router.get(
     "/dashboard/summary",
-    response_model=FinanceAssociateDashboardSummaryResponse,
+    response_model=FinanceManagerSummaryResponse,
 )
-async def get_finance_associate_summary(
+async def get_finance_manager_summary(
     db: AsyncSession = Depends(
         get_db_session,
     ),
     current_user: User = Depends(
         require_roles(
-            *FINANCE_ASSOCIATE_ROLES,
+            *FINANCE_MANAGER_ROLES,
         ),
     ),
-) -> FinanceAssociateDashboardSummaryResponse:
-    service = FinanceAssociateService(
+) -> FinanceManagerSummaryResponse:
+    service = FinanceManagerService(
         db,
     )
 
@@ -58,10 +58,10 @@ async def get_finance_associate_summary(
 
 
 @router.get(
-    "/invoices/ready-for-approval",
+    "/invoices/my-escalated",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_ready_for_approval(
+async def list_finance_manager_my_escalated(
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -70,25 +70,25 @@ async def list_finance_associate_ready_for_approval(
     ),
     current_user: User = Depends(
         require_roles(
-            *FINANCE_ASSOCIATE_ROLES,
+            *FINANCE_MANAGER_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = FinanceAssociateService(
+    service = FinanceManagerService(
         db,
     )
 
-    return await service.list_ready_for_approval(
+    return await service.list_my_escalated(
         current_user.id,
         query,
     )
 
 
 @router.get(
-    "/invoices/needs-review",
+    "/invoices/unassigned",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_needs_review(
+async def list_finance_manager_unassigned(
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -97,25 +97,25 @@ async def list_finance_associate_needs_review(
     ),
     current_user: User = Depends(
         require_roles(
-            *FINANCE_ASSOCIATE_ROLES,
+            *FINANCE_MANAGER_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = FinanceAssociateService(
+    service = FinanceManagerService(
         db,
     )
 
-    return await service.list_needs_review(
+    return await service.list_unassigned(
         current_user.id,
         query,
     )
 
 
 @router.get(
-    "/invoices/ready-to-pay",
+    "/invoices/my-claimed",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_ready_to_pay(
+async def list_finance_manager_my_claimed(
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -124,15 +124,15 @@ async def list_finance_associate_ready_to_pay(
     ),
     current_user: User = Depends(
         require_roles(
-            *FINANCE_ASSOCIATE_ROLES,
+            *FINANCE_MANAGER_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = FinanceAssociateService(
+    service = FinanceManagerService(
         db,
     )
 
-    return await service.list_ready_to_pay(
+    return await service.list_my_claimed(
         current_user.id,
         query,
     )
@@ -142,7 +142,7 @@ async def list_finance_associate_ready_to_pay(
     "/invoices/rejected",
     response_model=DashboardInvoiceListResponse,
 )
-async def list_finance_associate_rejected(
+async def list_finance_manager_rejected(
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -151,11 +151,11 @@ async def list_finance_associate_rejected(
     ),
     current_user: User = Depends(
         require_roles(
-            *FINANCE_ASSOCIATE_ROLES,
+            *FINANCE_MANAGER_ROLES,
         ),
     ),
 ) -> DashboardInvoiceListResponse:
-    service = FinanceAssociateService(
+    service = FinanceManagerService(
         db,
     )
 
@@ -167,20 +167,20 @@ async def list_finance_associate_rejected(
 
 @router.get(
     "/invoices/{invoice_id}/review",
-    response_model=FinanceAssociateReviewResponse,
+    response_model=FinanceManagerReviewResponse,
 )
-async def get_finance_associate_invoice_review(
+async def get_finance_manager_invoice_review(
     invoice_id: UUID,
     db: AsyncSession = Depends(
         get_db_session,
     ),
     current_user: User = Depends(
         require_roles(
-            *FINANCE_ASSOCIATE_ROLES,
+            *FINANCE_MANAGER_ROLES,
         ),
     ),
-) -> FinanceAssociateReviewResponse:
-    service = FinanceAssociateService(
+) -> FinanceManagerReviewResponse:
+    service = FinanceManagerService(
         db,
     )
 
