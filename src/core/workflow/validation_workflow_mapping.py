@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.constants.redis_stream_constants import (
+    VALIDATION_EVENT_TYPE_COMPLETED,
+    VALIDATION_EVENT_TYPE_PENDING_REVIEW,
+    VALIDATION_EVENT_TYPE_REJECTED,
+)
 from src.data.models.postgres.enums import (
     InvoiceStatus,
     InvoiceValidationOutcome,
-)
-from src.schemas.validation_event_schema import (
-    ValidationEventOutcome,
 )
 
 
@@ -20,10 +22,10 @@ class WorkflowTransition:
 
 
 WORKFLOW_TRANSITIONS: dict[
-    ValidationEventOutcome,
+    str,
     WorkflowTransition,
 ] = {
-    ValidationEventOutcome.APPROVED: WorkflowTransition(
+    VALIDATION_EVENT_TYPE_COMPLETED: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
         target_validation_outcome=InvoiceValidationOutcome.APPROVED,
         audit_action="VALIDATION_COMPLETED",
@@ -32,7 +34,7 @@ WORKFLOW_TRANSITIONS: dict[
             "invoice moved to human review"
         ),
     ),
-    ValidationEventOutcome.PENDING_REVIEW: WorkflowTransition(
+    VALIDATION_EVENT_TYPE_PENDING_REVIEW: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
         target_validation_outcome=InvoiceValidationOutcome.PENDING_REVIEW,
         audit_action="VALIDATION_PENDING_REVIEW",
@@ -41,7 +43,7 @@ WORKFLOW_TRANSITIONS: dict[
             "invoice moved to human review"
         ),
     ),
-    ValidationEventOutcome.REJECTED: WorkflowTransition(
+    VALIDATION_EVENT_TYPE_REJECTED: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
         target_validation_outcome=InvoiceValidationOutcome.REJECTED,
         audit_action="VALIDATION_REJECTED",

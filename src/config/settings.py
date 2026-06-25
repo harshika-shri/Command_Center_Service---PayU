@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = Field(default=0, validation_alias="REDIS_DB")
 
     VALIDATION_EVENTS_STREAM: str = Field(
-        default="validation-events",
+        default="validation.events",
         validation_alias="VALIDATION_EVENTS_STREAM",
     )
     VALIDATION_EVENTS_CONSUMER_GROUP: str = Field(
