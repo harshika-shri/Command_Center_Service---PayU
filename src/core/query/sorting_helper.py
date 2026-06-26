@@ -56,9 +56,7 @@ class SortingHelper:
             except ValueError:
                 order = SortOrder.DESC
 
-        column = cls._SORT_COLUMNS[
-            field,
-        ]
+        column = cls._SORT_COLUMNS[field]
         requires_vendor_join = field == InvoiceSortField.VENDOR_NAME
 
         if order == SortOrder.ASC:

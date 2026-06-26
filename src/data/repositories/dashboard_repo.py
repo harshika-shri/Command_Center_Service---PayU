@@ -104,8 +104,6 @@ class DashboardRepository(BaseRepository):
         bucket: DashboardBucket,
         query: InvoiceListQueryOptions,
         extra_filter: ColumnElement[bool] | None = None,
-        sort_by: str | None = None,
-        sort_order: str | None = None,
     ) -> tuple[list[DashboardInvoiceRow], int]:
         bucket_filter = dashboard_bucket_filter(
             bucket,
