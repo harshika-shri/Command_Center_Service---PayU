@@ -70,6 +70,10 @@ class Settings(BaseSettings):
         default="",
         validation_alias="SENDGRID_FROM_EMAIL",
     )
+    VENDOR_EMAIL_FALLBACK: str = Field(
+        default="22b113@psgitech.ac.in",
+        validation_alias="VENDOR_EMAIL_FALLBACK",
+    )
 
     GROQ_API_KEY: str = Field(
         default="",

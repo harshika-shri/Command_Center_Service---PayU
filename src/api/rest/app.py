@@ -41,6 +41,9 @@ from src.api.rest.routes.notifications import (
 from src.api.rest.routes.reports import (
     router as reports_router,
 )
+from src.api.rest.routes.users import (
+    router as users_router,
+)
 from src.consumers.validation_stream_consumer import (
     get_validation_stream_consumer,
 )
@@ -98,3 +101,4 @@ app.include_router(router=invoice_take_ownership_router)
 app.include_router(router=notifications_router)
 app.include_router(router=events_router)
 app.include_router(router=reports_router)
+app.include_router(router=users_router)

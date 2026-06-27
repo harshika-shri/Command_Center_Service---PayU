@@ -10,6 +10,7 @@ from src.data.models.postgres.dispute_communications import (
     DisputeCommunication,
 )
 from src.data.models.postgres.disputes import Dispute
+from src.data.models.postgres.enums import CommunicationStatus
 from src.data.models.postgres.users import User
 from src.data.repositories.base_repo import BaseRepository
 
@@ -83,6 +84,26 @@ class InvoiceCommunicationRepository(BaseRepository):
             )
             for row in result.all()
         ]
+
+    async def has_sent_clarification(
+        self,
+        invoice_id: UUID,
+    ) -> bool:
+        result = await self.execute(
+            select(DisputeCommunication.id)
+            .join(
+                Dispute,
+                DisputeCommunication.dispute_id == Dispute.id,
+            )
+            .where(
+                Dispute.invoice_id == invoice_id,
+                Dispute.reason_category == _CLARIFICATION_CATEGORY,
+                DisputeCommunication.status == CommunicationStatus.SENT,
+            )
+            .limit(1),
+        )
+
+        return result.scalar_one_or_none() is not None
 
     async def list_communication_history(
         self,

@@ -24,6 +24,9 @@ from src.data.models.postgres.invoice_validation_issues import (
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
+from src.data.repositories.invoice_recipient_repo import (
+    InvoiceRecipientRepository,
+)
 
 _UNRESOLVED_ISSUE_STATUSES = (
     ValidationIssueStatus.OPEN,
@@ -58,6 +61,13 @@ class RejectionDraftContext:
 
 
 class RejectionRepository(BaseRepository):
+    def __init__(
+        self,
+        session,
+    ) -> None:
+        super().__init__(session)
+        self.recipient_repo = InvoiceRecipientRepository(session)
+
     async def get_invoice_for_update(
         self,
         invoice_id: UUID,
@@ -184,34 +194,9 @@ class RejectionRepository(BaseRepository):
         self,
         invoice_id: UUID,
     ) -> str | None:
-        result = await self.execute(
-            select(
-                VendorMaster.email,
-                InvoiceExtractedVendor.vendor_email,
-            )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                InvoiceExtractedVendor,
-                Invoice.id == InvoiceExtractedVendor.invoice_id,
-            )
-            .where(
-                Invoice.id == invoice_id,
-            ),
-        )
-        row = result.one_or_none()
-
-        if row is None:
-            return None
-
-        return self._resolve_vendor_email(
-            row.email,
-            row.vendor_email,
+        return await self.recipient_repo.get_recipient_email(
+            invoice_id,
+            sender_only=True,
         )
 
     async def get_or_create_rejection_dispute(

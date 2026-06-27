@@ -11,9 +11,6 @@ from src.data.models.postgres.enums import (
     InvoiceValidationOutcome,
     ValidationIssueStatus,
 )
-from src.data.models.postgres.invoice_extracted_vendor import (
-    InvoiceExtractedVendor,
-)
 from src.data.models.postgres.invoice_review_summaries import (
     InvoiceReviewSummary,
 )
@@ -21,8 +18,10 @@ from src.data.models.postgres.invoice_validation_issues import (
     InvoiceValidationIssue,
 )
 from src.data.models.postgres.invoices import Invoice
-from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
+from src.data.repositories.invoice_recipient_repo import (
+    InvoiceRecipientRepository,
+)
 
 _UNRESOLVED_ISSUE_STATUSES = (
     ValidationIssueStatus.OPEN,
@@ -51,6 +50,13 @@ class ClarificationDraftContext:
 
 
 class ClarificationRepository(BaseRepository):
+    def __init__(
+        self,
+        session,
+    ) -> None:
+        super().__init__(session)
+        self.recipient_repo = InvoiceRecipientRepository(session)
+
     async def get_draft_context(
         self,
         invoice_id: UUID,
@@ -61,22 +67,7 @@ class ClarificationRepository(BaseRepository):
                 Invoice.invoice_number,
                 Invoice.invoice_status,
                 Invoice.validation_outcome,
-                Invoice.vendor_id,
-                VendorMaster.email,
-                InvoiceExtractedVendor.vendor_email,
-            )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                InvoiceExtractedVendor,
-                Invoice.id == InvoiceExtractedVendor.invoice_id,
-            )
-            .where(
+            ).where(
                 Invoice.id == invoice_id,
             ),
         )
@@ -85,9 +76,9 @@ class ClarificationRepository(BaseRepository):
         if invoice_row is None:
             return None
 
-        vendor_email = self._resolve_vendor_email(
-            invoice_row.email,
-            invoice_row.vendor_email,
+        vendor_email = await self.recipient_repo.get_recipient_email(
+            invoice_id,
+            sender_only=True,
         )
         vendor_clarifications = await self._get_vendor_clarifications(
             invoice_id,
@@ -138,34 +129,9 @@ class ClarificationRepository(BaseRepository):
         self,
         invoice_id: UUID,
     ) -> str | None:
-        result = await self.execute(
-            select(
-                VendorMaster.email,
-                InvoiceExtractedVendor.vendor_email,
-            )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                InvoiceExtractedVendor,
-                Invoice.id == InvoiceExtractedVendor.invoice_id,
-            )
-            .where(
-                Invoice.id == invoice_id,
-            ),
-        )
-        row = result.one_or_none()
-
-        if row is None:
-            return None
-
-        return self._resolve_vendor_email(
-            row.email,
-            row.vendor_email,
+        return await self.recipient_repo.get_recipient_email(
+            invoice_id,
+            sender_only=True,
         )
 
     async def _get_vendor_clarifications(
@@ -210,19 +176,6 @@ class ClarificationRepository(BaseRepository):
         return list(
             result.scalars().all(),
         )
-
-    @staticmethod
-    def _resolve_vendor_email(
-        vendor_master_email: str | None,
-        extracted_vendor_email: str | None,
-    ) -> str | None:
-        if vendor_master_email:
-            return vendor_master_email
-
-        if extracted_vendor_email:
-            return extracted_vendor_email
-
-        return None
 
     @staticmethod
     def _normalize_clarification_points(

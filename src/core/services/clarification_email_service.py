@@ -43,6 +43,9 @@ from src.data.models.postgres.enums import (
 from src.data.repositories.clarification_repo import (
     ClarificationRepository,
 )
+from src.data.repositories.invoice_communication_repo import (
+    InvoiceCommunicationRepository,
+)
 from src.data.repositories.user_repo import (
     UserRepository,
 )
@@ -61,6 +64,9 @@ class ClarificationEmailService:
         session: AsyncSession,
     ) -> None:
         self.clarification_repo = ClarificationRepository(
+            session,
+        )
+        self.communication_repo = InvoiceCommunicationRepository(
             session,
         )
         self.dispute_service = DisputeService(
@@ -119,6 +125,13 @@ class ClarificationEmailService:
             user_role=sending_user.role,
             invoice_id=invoice_id,
         )
+
+        if await self.communication_repo.has_sent_clarification(
+            invoice_id,
+        ):
+            raise ClarificationConflictError(
+                "Clarification email has already been sent for this invoice.",
+            )
 
         vendor_email = await self.clarification_repo.get_vendor_email(
             invoice_id,
