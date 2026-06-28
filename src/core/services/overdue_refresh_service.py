@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import logging
-from datetime import date
+from datetime import date, datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +16,7 @@ from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.models.postgres.enums import (
     InvoiceStatus,
 )
+from src.data.models.postgres.system_jobs import SystemJob
 from src.data.repositories.overdue_invoice_repository import (
     OverdueCandidateRow,
     OverdueInvoiceRepository,
@@ -31,6 +32,10 @@ logger = logging.getLogger(
 
 _OVERDUE_AUDIT_ACTION = "MARK_OVERDUE"
 _OVERDUE_AUDIT_REMARKS = "Invoice automatically marked as overdue."
+
+
+class OverdueRefreshConfigurationError(RuntimeError):
+    """Raised when required system_jobs configuration is missing."""
 
 
 class OverdueRefreshService:
@@ -55,26 +60,38 @@ class OverdueRefreshService:
     async def refresh_if_required(
         self,
     ) -> None:
-        today = date.today()
-        await self._refresh_for_today(
-            today,
-        )
-
-    async def _refresh_for_today(
-        self,
-        today: date,
-    ) -> None:
+        today = datetime.now(
+            timezone.utc,
+        ).date()
         job = await self.system_jobs_repo.get_job_for_update(
             OVERDUE_REFRESH_JOB_NAME,
         )
 
         if job is None:
-            logger.warning(
-                "System job row missing for %s",
-                OVERDUE_REFRESH_JOB_NAME,
+            raise OverdueRefreshConfigurationError(
+                "Required system_jobs row "
+                f"'{OVERDUE_REFRESH_JOB_NAME}' is missing. "
+                "This row is seeded by migration "
+                "t1u5v4w39r08_create_system_jobs_table. "
+                "Run `alembic upgrade head` in auth_service.",
             )
+
+        if (
+            job.last_run_date is not None
+            and job.last_run_date >= today
+        ):
             return
 
+        await self._refresh_for_today(
+            today,
+            job,
+        )
+
+    async def _refresh_for_today(
+        self,
+        today: date,
+        job: SystemJob,
+    ) -> None:
         candidates = (
             await self.overdue_invoice_repo.fetch_invoices_to_mark_overdue(
                 today,
@@ -92,7 +109,7 @@ class OverdueRefreshService:
                 )
 
         await self.system_jobs_repo.update_last_run_date(
-            OVERDUE_REFRESH_JOB_NAME,
+            job,
             today,
         )
 

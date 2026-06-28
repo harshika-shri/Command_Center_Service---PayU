@@ -7,21 +7,13 @@ from src.core.services.overdue_refresh_service import (
 )
 
 
-async def ensure_overdue_refreshed(
-    db: AsyncSession,
+async def run_overdue_refresh_if_required(
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
 ) -> None:
     service = OverdueRefreshService(
         db,
     )
 
     await service.refresh_if_required()
-
-
-async def run_overdue_refresh_if_required(
-    db: AsyncSession = Depends(
-        get_db_session,
-    ),
-) -> None:
-    await ensure_overdue_refreshed(
-        db,
-    )

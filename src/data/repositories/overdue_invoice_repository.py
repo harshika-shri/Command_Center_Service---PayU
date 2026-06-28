@@ -62,24 +62,17 @@ class OverdueInvoiceRepository(BaseRepository):
             ),
         )
 
-        rows: list[OverdueCandidateRow] = []
-
-        for row in result.all():
-            if row.due_date is None or row.invoice_status is None:
-                continue
-
-            rows.append(
-                OverdueCandidateRow(
-                    invoice_id=row.id,
-                    invoice_number=row.invoice_number,
-                    due_date=row.due_date,
-                    vendor_name=row.vendor_name,
-                    previous_status=row.invoice_status.value,
-                    validation_outcome=row.validation_outcome,
-                ),
+        return [
+            OverdueCandidateRow(
+                invoice_id=row.id,
+                invoice_number=row.invoice_number,
+                due_date=row.due_date,
+                vendor_name=row.vendor_name,
+                previous_status=row.invoice_status.value,
+                validation_outcome=row.validation_outcome,
             )
-
-        return rows
+            for row in result.all()
+        ]
 
     async def mark_invoices_overdue(
         self,
@@ -102,6 +95,9 @@ class OverdueInvoiceRepository(BaseRepository):
             )
             .values(
                 invoice_status=InvoiceStatus.OVERDUE,
+            )
+            .execution_options(
+                synchronize_session=False,
             ),
         )
         await self.session.flush()
