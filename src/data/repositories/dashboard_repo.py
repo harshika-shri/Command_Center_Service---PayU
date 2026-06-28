@@ -30,6 +30,7 @@ class DashboardSummaryCounts:
     escalated: int
     ready_to_pay: int
     rejected: int
+    overdue: int
     total: int
 
 
@@ -38,6 +39,7 @@ class DashboardInvoiceRow:
     invoice_id: UUID
     invoice_number: str | None
     invoice_date: date | None
+    due_date: date | None
     vendor_name: str | None
     total_amount: Decimal | None
     validation_outcome: str | None
@@ -92,6 +94,9 @@ class DashboardRepository(BaseRepository):
             ],
             rejected=counts[
                 DashboardBucket.REJECTED.value
+            ],
+            overdue=counts[
+                DashboardBucket.OVERDUE.value
             ],
             total=sum(
                 counts.values(),
@@ -184,6 +189,7 @@ class DashboardRepository(BaseRepository):
                 Invoice.id,
                 Invoice.invoice_number,
                 Invoice.invoice_date,
+                Invoice.due_date,
                 VendorMaster.vendor_name,
                 Invoice.total_amount,
                 Invoice.validation_outcome,
@@ -226,6 +232,7 @@ class DashboardRepository(BaseRepository):
                 invoice_id=row.id,
                 invoice_number=row.invoice_number,
                 invoice_date=row.invoice_date,
+                due_date=row.due_date,
                 vendor_name=row.vendor_name,
                 total_amount=row.total_amount,
                 validation_outcome=(

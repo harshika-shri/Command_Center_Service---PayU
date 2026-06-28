@@ -18,6 +18,7 @@ class DashboardBucket(str, Enum):
     ESCALATED = "escalated"
     READY_TO_PAY = "ready_to_pay"
     REJECTED = "rejected"
+    OVERDUE = "overdue"
 
 
 class FinanceManagerBucket(str, Enum):
@@ -58,6 +59,9 @@ def dashboard_bucket_filter(
 
     if bucket == DashboardBucket.REJECTED:
         return Invoice.invoice_status == InvoiceStatus.REJECTED
+
+    if bucket == DashboardBucket.OVERDUE:
+        return Invoice.invoice_status == InvoiceStatus.OVERDUE
 
     raise ValueError(
         f"Unsupported dashboard bucket: {bucket}",
@@ -126,6 +130,9 @@ def resolve_dashboard_bucket(
 
     if invoice_status == InvoiceStatus.REJECTED:
         return DashboardBucket.REJECTED.value
+
+    if invoice_status == InvoiceStatus.OVERDUE:
+        return DashboardBucket.OVERDUE.value
 
     if invoice_status == InvoiceStatus.ESCALATED:
         return DashboardBucket.ESCALATED.value
