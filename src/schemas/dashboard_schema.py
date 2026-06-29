@@ -12,6 +12,7 @@ class DashboardSummaryResponse(BaseModel):
     escalated: int
     ready_to_pay: int
     rejected: int
+    overdue: int
     total: int
 
 
@@ -19,20 +20,24 @@ class DashboardInvoiceListItem(BaseModel):
     invoice_id: UUID
     invoice_number: str | None
     invoice_date: date | None
+    due_date: date | None = None
     vendor_name: str | None
     total_amount: float | None
     validation_outcome: str | None
     invoice_status: str | None
     rejection_reason: str | None = None
     escalated_to: UUID | None = None
+    assigned_manager_id: UUID | None = None
     created_at: datetime
 
 
 class DashboardInvoiceListResponse(BaseModel):
     items: list[DashboardInvoiceListItem]
-    page: int
-    page_size: int
     total_records: int
+    total_pages: int
+    current_page: int
+    page_size: int
+    page: int
 
 
 class DashboardPaginationParams(BaseModel):
@@ -45,6 +50,8 @@ class DashboardPaginationParams(BaseModel):
         ge=1,
         le=100,
     )
+    sort_by: str | None = None
+    sort_order: str | None = None
 
     @property
     def offset(self) -> int:

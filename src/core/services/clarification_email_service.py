@@ -21,6 +21,12 @@ from src.core.services.dispute_communication_service import (
 from src.core.services.dispute_service import (
     DisputeService,
 )
+from src.core.services.authorization_service import (
+    AuthorizationService,
+)
+from src.core.services.notification_service import (
+    NotificationService,
+)
 from src.core.services.sendgrid_service import (
     SendGridService,
 )
@@ -36,6 +42,12 @@ from src.data.models.postgres.enums import (
 )
 from src.data.repositories.clarification_repo import (
     ClarificationRepository,
+)
+from src.data.repositories.invoice_communication_repo import (
+    InvoiceCommunicationRepository,
+)
+from src.data.repositories.user_repo import (
+    UserRepository,
 )
 from src.schemas.clarification_schema import (
     SendClarificationRequest,
@@ -54,6 +66,9 @@ class ClarificationEmailService:
         self.clarification_repo = ClarificationRepository(
             session,
         )
+        self.communication_repo = InvoiceCommunicationRepository(
+            session,
+        )
         self.dispute_service = DisputeService(
             session,
         )
@@ -67,6 +82,15 @@ class ClarificationEmailService:
         )
         self.sendgrid_service = SendGridService()
         self.draft_builder = ClarificationDraftBuilder()
+        self.authorization_service = AuthorizationService(
+            session,
+        )
+        self.user_repo = UserRepository(
+            session,
+        )
+        self.notification_service = NotificationService(
+            session,
+        )
 
     async def send_clarification(
         self,
@@ -86,6 +110,28 @@ class ClarificationEmailService:
             invoice_status=snapshot.invoice_status,
             validation_outcome=snapshot.validation_outcome,
         )
+
+        sending_user = await self.user_repo.get_user_by_id(
+            request.sent_by,
+        )
+
+        if sending_user is None:
+            raise ClarificationValidationError(
+                "Sending user must be an active user.",
+            )
+
+        await self.authorization_service.ensure_can_clarify(
+            user_id=request.sent_by,
+            user_role=sending_user.role,
+            invoice_id=invoice_id,
+        )
+
+        if await self.communication_repo.has_sent_clarification(
+            invoice_id,
+        ):
+            raise ClarificationConflictError(
+                "Clarification email has already been sent for this invoice.",
+            )
 
         vendor_email = await self.clarification_repo.get_vendor_email(
             invoice_id,
@@ -131,6 +177,10 @@ class ClarificationEmailService:
                 remarks=self.AUDIT_REMARKS,
                 performed_by=request.sent_by,
             ),
+        )
+
+        await self.notification_service.notify_clarification_sent(
+            invoice_id,
         )
 
         return SendClarificationResponse(

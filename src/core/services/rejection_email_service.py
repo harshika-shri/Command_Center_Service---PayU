@@ -18,6 +18,9 @@ from src.core.services.audit_log_service import (
 from src.core.services.dispute_communication_service import (
     DisputeCommunicationService,
 )
+from src.core.services.invoice_ownership_service import (
+    InvoiceOwnershipService,
+)
 from src.core.services.sendgrid_service import (
     SendGridService,
 )
@@ -32,6 +35,9 @@ from src.data.models.postgres.enums import (
 )
 from src.data.repositories.rejection_repo import (
     RejectionRepository,
+)
+from src.data.repositories.user_repo import (
+    UserRepository,
 )
 from src.schemas.rejection_schema import (
     SendRejectionEmailRequest,
@@ -60,6 +66,12 @@ class RejectionEmailService:
         )
         self.sendgrid_service = SendGridService()
         self.html_builder = ClarificationDraftBuilder()
+        self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
+        self.user_repo = UserRepository(
+            session,
+        )
 
     async def send_rejection_email(
         self,
@@ -77,6 +89,21 @@ class RejectionEmailService:
 
         current_status = self._validate_invoice_eligibility(
             snapshot.invoice_status,
+        )
+
+        sending_user = await self.user_repo.get_user_by_id(
+            request.sent_by,
+        )
+
+        if sending_user is None:
+            raise InvoiceRejectionValidationError(
+                "Sending user must be an active user.",
+            )
+
+        await self.ownership_service.ensure_can_take_action(
+            user_id=request.sent_by,
+            user_role=sending_user.role,
+            invoice_id=invoice_id,
         )
 
         vendor_email = await self.rejection_repo.get_vendor_email(

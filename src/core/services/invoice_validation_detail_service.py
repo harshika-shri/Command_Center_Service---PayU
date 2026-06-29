@@ -10,6 +10,9 @@ from src.core.exceptions.workflow_exc import (
 from src.core.services.invoice_access_service import (
     InvoiceAccessService,
 )
+from src.data.repositories.invoice_communication_repo import (
+    InvoiceCommunicationRepository,
+)
 from src.data.repositories.invoice_validation_repo import (
     InvoiceValidationData,
     InvoiceValidationRepository,
@@ -30,6 +33,9 @@ class InvoiceValidationDetailService:
             session,
         )
         self.validation_repo = InvoiceValidationRepository(
+            session,
+        )
+        self.communication_repo = InvoiceCommunicationRepository(
             session,
         )
 
@@ -53,13 +59,22 @@ class InvoiceValidationDetailService:
                 str(invoice_id),
             )
 
+        clarification_sent = (
+            await self.communication_repo.has_sent_clarification(
+                invoice_id,
+            )
+        )
+
         return self._map_validation(
             data,
+            clarification_sent=clarification_sent,
         )
 
     @staticmethod
     def _map_validation(
         data: InvoiceValidationData,
+        *,
+        clarification_sent: bool,
     ) -> InvoiceValidationResponse:
         review_summary = None
 
@@ -75,6 +90,7 @@ class InvoiceValidationDetailService:
 
         return InvoiceValidationResponse(
             validation_outcome=data.validation_outcome,
+            clarification_sent=clarification_sent,
             issues=[
                 ValidationIssueDetails(
                     id=issue.id,

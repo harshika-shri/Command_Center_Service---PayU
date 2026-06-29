@@ -18,6 +18,13 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.authorization_service import (
+    AuthorizationService,
+)
+from src.core.services.notification_service import (
+    NotificationService,
+)
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.invoice_workflow_buckets import (
     is_ready_for_approval,
 )
@@ -27,6 +34,9 @@ from src.data.models.postgres.enums import (
 )
 from src.data.repositories.approval_repo import (
     ApprovalRepository,
+)
+from src.data.repositories.user_repo import (
+    UserRepository,
 )
 from src.schemas.approval_schema import (
     ApproveInvoiceRequest,
@@ -54,6 +64,15 @@ class ApproveInvoiceService:
         self.audit_log_service = AuditLogService(
             session,
         )
+        self.authorization_service = AuthorizationService(
+            session,
+        )
+        self.user_repo = UserRepository(
+            session,
+        )
+        self.notification_service = NotificationService(
+            session,
+        )
 
     async def approve_invoice(
         self,
@@ -72,6 +91,21 @@ class ApproveInvoiceService:
         self._validate_invoice_eligibility(
             snapshot.invoice_status,
             snapshot.validation_outcome,
+        )
+
+        approving_user = await self.user_repo.get_user_by_id(
+            request.approved_by,
+        )
+
+        if approving_user is None:
+            raise InvoiceApprovalValidationError(
+                "Approving user must be an active user.",
+            )
+
+        await self.authorization_service.ensure_can_approve(
+            user_id=request.approved_by,
+            user_role=approving_user.role,
+            invoice_id=invoice_id,
         )
 
         po_candidate = (
@@ -128,6 +162,18 @@ class ApproveInvoiceService:
             ),
         )
 
+        await self.notification_service.notify_invoice_approved(
+            invoice_id,
+        )
+
+        await SSEEventPublisher.schedule_invoice_state_change(
+            self.approval_repo.session,
+            invoice_id=invoice_id,
+            invoice_status=InvoiceStatus.READY_TO_PAY,
+            validation_outcome=snapshot.validation_outcome
+            or InvoiceValidationOutcome.APPROVED,
+        )
+
         return ApproveInvoiceResponse(
             invoice_id=invoice_id,
             invoice_status=InvoiceStatus.READY_TO_PAY.value,
@@ -149,8 +195,11 @@ class ApproveInvoiceService:
         if not is_ready_for_approval(
             invoice_status=invoice_status,
             validation_outcome=validation_outcome,
+        ) and not (
+            invoice_status == InvoiceStatus.ESCALATED
+            and validation_outcome == InvoiceValidationOutcome.APPROVED
         ):
             raise InvoiceApprovalConflictError(
                 "Invoice must have approved validation outcome "
-                "and be under human review.",
+                "and be under human review or escalated.",
             )

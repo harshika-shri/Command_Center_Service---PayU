@@ -60,41 +60,33 @@ class InvoiceHeaderRepository(BaseRepository):
                 Invoice.received_email,
                 Invoice.created_at,
                 Invoice.updated_at,
+                # Vendor: prefer VendorMaster, fall back to InvoiceExtractedVendor
                 func.coalesce(
                     VendorMaster.vendor_name,
                     InvoiceExtractedVendor.vendor_name,
-                ).label("vendor_name"),
-                VendorMaster.vendor_code,
+                ).label('vendor_name'),
+                VendorMaster.vendor_code.label('vendor_code'),
                 func.coalesce(
                     VendorMaster.gstin,
                     InvoiceExtractedVendor.vendor_gstin,
-                ).label("vendor_gstin"),
+                ).label('vendor_gstin'),
                 func.coalesce(
                     VendorMaster.email,
                     InvoiceExtractedVendor.vendor_email,
-                ).label("vendor_email"),
+                ).label('vendor_email'),
+                # Company
                 CompanyMaster.company_name,
                 CompanyMaster.company_code,
-                CompanyMaster.gstin.label("company_gstin"),
+                CompanyMaster.gstin.label('company_gstin'),
             )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                CompanyMaster,
-                Invoice.company_id == CompanyMaster.id,
-            )
+            .select_from(Invoice)
+            .outerjoin(VendorMaster, Invoice.vendor_id == VendorMaster.id)
             .outerjoin(
                 InvoiceExtractedVendor,
                 Invoice.id == InvoiceExtractedVendor.invoice_id,
             )
-            .where(
-                Invoice.id == invoice_id,
-            ),
+            .outerjoin(CompanyMaster, Invoice.company_id == CompanyMaster.id)
+            .where(Invoice.id == invoice_id),
         )
         row = result.one_or_none()
 

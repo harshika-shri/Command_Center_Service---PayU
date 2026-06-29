@@ -45,6 +45,22 @@ class InvoiceRepository(BaseRepository):
             validation_outcome=row.validation_outcome,
         )
 
+    async def update_invoice_status(
+        self,
+        invoice_id: UUID,
+        *,
+        invoice_status: InvoiceStatus,
+    ) -> None:
+        await self.execute(
+            update(Invoice)
+            .where(
+                Invoice.id == invoice_id,
+            )
+            .values(
+                invoice_status=invoice_status,
+            ),
+        )
+
     async def update_workflow_state(
         self,
         invoice_id: UUID,

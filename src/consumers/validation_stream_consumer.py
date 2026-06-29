@@ -4,13 +4,14 @@ import asyncio
 import logging
 
 from redis.asyncio import Redis
-from redis.exceptions import ResponseError
+from redis.exceptions import ResponseError, TimeoutError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config.settings import settings
 from src.core.services.validation_event_handler_service import (
     ValidationEventHandlerService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.data.clients.postgres_client import (
     get_session_factory,
 )
@@ -106,15 +107,18 @@ class ValidationStreamConsumer:
         if self._redis is None or self._session_factory is None:
             return
 
-        response = await self._redis.xreadgroup(
-            groupname=settings.VALIDATION_EVENTS_CONSUMER_GROUP,
-            consumername=settings.VALIDATION_EVENTS_CONSUMER_NAME,
-            streams={
-                settings.VALIDATION_EVENTS_STREAM: ">",
-            },
-            count=settings.REDIS_STREAM_BATCH_SIZE,
-            block=settings.REDIS_STREAM_BLOCK_MS,
-        )
+        try:
+            response = await self._redis.xreadgroup(
+                groupname=settings.VALIDATION_EVENTS_CONSUMER_GROUP,
+                consumername=settings.VALIDATION_EVENTS_CONSUMER_NAME,
+                streams={
+                    settings.VALIDATION_EVENTS_STREAM: ">",
+                },
+                count=settings.REDIS_STREAM_BATCH_SIZE,
+                block=settings.REDIS_STREAM_BLOCK_MS,
+            )
+        except TimeoutError:
+            return
 
         if not response:
             return
@@ -147,6 +151,7 @@ class ValidationStreamConsumer:
                         fields=fields,
                     )
                     await session.commit()
+                    await SSEEventPublisher.flush()
 
                 logger.info(
                     "Processed validation stream message "
@@ -163,6 +168,8 @@ class ValidationStreamConsumer:
                 )
                 return
             except Exception as error:
+                SSEEventPublisher.clear_pending()
+
                 if self._handler.should_acknowledge_without_retry(
                     error,
                 ):

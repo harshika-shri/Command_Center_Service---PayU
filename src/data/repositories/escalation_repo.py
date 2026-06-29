@@ -96,6 +96,7 @@ class EscalationRepository(BaseRepository):
             .values(
                 invoice_status=InvoiceStatus.ESCALATED,
                 escalated_to=manager_id,
+                assigned_manager_id=manager_id,
                 assigned_at=func.now(),
             ),
         )

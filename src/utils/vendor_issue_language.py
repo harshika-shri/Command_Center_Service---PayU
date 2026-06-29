@@ -90,8 +90,10 @@ def vendor_friendly_issue_message(
     issue_code: str,
     description: str,
 ) -> str:
+    normalized_code = issue_code.strip().upper()
+
     mapped = OPEN_ISSUE_MESSAGES.get(
-        issue_code,
+        normalized_code,
     )
 
     if mapped:
@@ -117,16 +119,16 @@ def deduplicate_issue_messages(
     unique_messages: list[str] = []
 
     for message in messages:
-        normalized = message.strip()
+        normalized = re.sub(
+            r"\s+",
+            " ",
+            message.strip(),
+        )
 
         if not normalized or normalized in seen:
             continue
 
-        seen.add(
-            normalized,
-        )
-        unique_messages.append(
-            normalized,
-        )
+        seen.add(normalized)
+        unique_messages.append(normalized)
 
     return unique_messages

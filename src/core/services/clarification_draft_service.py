@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions.clarification_exc import (
     ClarificationConflictError,
+    ClarificationValidationError,
 )
 from src.core.exceptions.workflow_exc import (
     InvoiceNotFoundError,
@@ -23,6 +24,9 @@ from src.data.models.postgres.enums import (
 from src.data.repositories.clarification_repo import (
     ClarificationRepository,
 )
+from src.data.repositories.invoice_communication_repo import (
+    InvoiceCommunicationRepository,
+)
 from src.schemas.clarification_schema import (
     ClarificationDraftResponse,
 )
@@ -36,12 +40,22 @@ class ClarificationDraftService:
         self.clarification_repo = ClarificationRepository(
             session,
         )
+        self.communication_repo = InvoiceCommunicationRepository(
+            session,
+        )
         self.draft_builder = ClarificationDraftBuilder()
 
     async def generate_draft(
         self,
         invoice_id: UUID,
     ) -> ClarificationDraftResponse:
+        if await self.communication_repo.has_sent_clarification(
+            invoice_id,
+        ):
+            raise ClarificationConflictError(
+                "Clarification email has already been sent for this invoice.",
+            )
+
         context = await self.clarification_repo.get_draft_context(
             invoice_id,
         )
@@ -62,9 +76,9 @@ class ClarificationDraftService:
         )
 
         if not clarification_points:
-            clarification_points = [
-                "Additional clarification is required to complete invoice review.",
-            ]
+            raise ClarificationValidationError(
+                "No issues requiring vendor clarification for this invoice.",
+            )
 
         invoice_reference = str(
             context.invoice.invoice_id,

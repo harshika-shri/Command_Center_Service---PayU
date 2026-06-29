@@ -8,11 +8,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions.workflow_exc import (
     InvoiceNotFoundError,
+    ValidationEventProcessingError,
 )
 from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.notification_service import (
+    NotificationService,
+)
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.validation_workflow_mapping import (
     WORKFLOW_TRANSITIONS,
     WorkflowTransition,
@@ -47,12 +52,15 @@ class InvoiceWorkflowService:
         self.audit_log_service = AuditLogService(
             session,
         )
+        self.notification_service = NotificationService(
+            session,
+        )
 
     async def process_validation_event(
         self,
         event: ValidationCompletedEvent,
     ) -> WorkflowProcessingResult:
-        transition = WORKFLOW_TRANSITIONS[event.validation_outcome]
+        transition = WORKFLOW_TRANSITIONS[event.event_type]
         snapshot = await self.invoice_repo.get_workflow_snapshot(
             event.invoice_id,
         )
@@ -62,15 +70,22 @@ class InvoiceWorkflowService:
                 str(event.invoice_id),
             )
 
+        expected_outcome = transition.target_validation_outcome
+
+        if snapshot.validation_outcome != expected_outcome:
+            raise ValidationEventProcessingError(
+                "Validation outcome on invoice does not match event payload.",
+            )
+
         if self._is_duplicate_event(
             snapshot,
             transition,
         ):
             logger.info(
                 "Skipping duplicate validation event "
-                "invoice_id=%s outcome=%s current_status=%s",
+                "invoice_id=%s event_type=%s current_status=%s",
                 event.invoice_id,
-                event.validation_outcome.value,
+                event.event_type,
                 snapshot.invoice_status.value
                 if snapshot.invoice_status is not None
                 else None,
@@ -87,10 +102,9 @@ class InvoiceWorkflowService:
             snapshot.invoice_status,
         )
 
-        await self.invoice_repo.update_workflow_state(
+        await self.invoice_repo.update_invoice_status(
             event.invoice_id,
             invoice_status=transition.target_status,
-            validation_outcome=transition.target_validation_outcome,
         )
         await self.audit_log_service.create_audit_log(
             AuditLogCreatePayload(
@@ -104,11 +118,22 @@ class InvoiceWorkflowService:
 
         logger.info(
             "Invoice workflow updated invoice_id=%s "
-            "outcome=%s old_status=%s new_status=%s",
+            "event_type=%s old_status=%s new_status=%s",
             event.invoice_id,
-            event.validation_outcome.value,
+            event.event_type,
             previous_status,
             transition.target_status.value,
+        )
+
+        await self.notification_service.notify_invoice_assigned(
+            event.invoice_id,
+        )
+
+        await SSEEventPublisher.schedule_invoice_state_change(
+            self.invoice_repo.session,
+            invoice_id=event.invoice_id,
+            invoice_status=transition.target_status,
+            validation_outcome=transition.target_validation_outcome,
         )
 
         return WorkflowProcessingResult(
