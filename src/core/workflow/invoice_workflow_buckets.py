@@ -91,10 +91,18 @@ def is_eligible_for_clarification(
     validation_outcome: InvoiceValidationOutcome | None,
 ) -> bool:
     _ = validation_outcome
-    return invoice_status in (
-        InvoiceStatus.UNDER_REVIEW,
-        InvoiceStatus.ESCALATED,
-    )
+
+    if invoice_status is None:
+        return False
+
+    blocked_statuses = {
+        InvoiceStatus.READY_TO_PAY,
+        InvoiceStatus.PAID,
+        InvoiceStatus.REJECTED,
+        InvoiceStatus.APPROVED_READY_TO_PAY,
+    }
+
+    return invoice_status not in blocked_statuses
 
 
 def is_eligible_for_business_rejection(
