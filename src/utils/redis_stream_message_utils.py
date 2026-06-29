@@ -7,20 +7,38 @@ from typing import Any
 from pydantic import ValidationError
 
 from src.constants.redis_stream_constants import (
-    VALIDATION_EVENT_TYPE_COMPLETED,
-    VALIDATION_EVENT_TYPE_PENDING_REVIEW,
-    VALIDATION_EVENT_TYPE_REJECTED,
+    VALIDATION_EVENT_TYPE_AMBIGUOUS,
+    VALIDATION_EVENT_TYPE_DUPLICATE,
+    VALIDATION_EVENT_TYPE_RECOVERED,
+    VALIDATION_EVENT_TYPE_RESOLVED,
+    VALIDATION_EVENT_TYPE_UNRESOLVED,
 )
 from src.schemas.validation_event_schema import (
     VALIDATION_EVENT_VERSION,
     ValidationCompletedEvent,
 )
 
-_LEGACY_OUTCOME_TO_EVENT_TYPE = {
-    "APPROVED": VALIDATION_EVENT_TYPE_COMPLETED,
-    "PENDING_REVIEW": VALIDATION_EVENT_TYPE_PENDING_REVIEW,
-    "REJECTED": VALIDATION_EVENT_TYPE_REJECTED,
+_LEGACY_EVENT_TYPE_TO_OUTCOME = {
+    "validation.completed": "resolved",
+    "validation.pending_review": "recovered",
+    "validation.rejected": "unresolved",
 }
+
+_LEGACY_OUTCOME_VALUES = {
+    "approved": "resolved",
+    "pending_review": "recovered",
+    "rejected": "unresolved",
+}
+
+_NEW_EVENT_TYPES = frozenset(
+    {
+        VALIDATION_EVENT_TYPE_RESOLVED,
+        VALIDATION_EVENT_TYPE_RECOVERED,
+        VALIDATION_EVENT_TYPE_AMBIGUOUS,
+        VALIDATION_EVENT_TYPE_UNRESOLVED,
+        VALIDATION_EVENT_TYPE_DUPLICATE,
+    },
+)
 
 
 def decode_stream_fields(
@@ -39,25 +57,61 @@ def decode_stream_fields(
     return decoded
 
 
+def _event_type_to_outcome(
+    event_type: str,
+) -> str | None:
+    if event_type in _LEGACY_EVENT_TYPE_TO_OUTCOME:
+        return _LEGACY_EVENT_TYPE_TO_OUTCOME[event_type]
+
+    if event_type in _NEW_EVENT_TYPES:
+        return event_type.removeprefix(
+            "validation.",
+        )
+
+    return None
+
+
+def _ensure_validation_outcome(
+    fields: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(
+        fields,
+    )
+
+    if normalized.get(
+        "validation_outcome",
+    ):
+        outcome = str(
+            normalized["validation_outcome"],
+        ).lower()
+        normalized["validation_outcome"] = _LEGACY_OUTCOME_VALUES.get(
+            outcome,
+            outcome,
+        )
+        return normalized
+
+    event_type = str(
+        normalized.get(
+            "event_type",
+            "",
+        ),
+    )
+    derived_outcome = _event_type_to_outcome(
+        event_type,
+    )
+
+    if derived_outcome is not None:
+        normalized["validation_outcome"] = derived_outcome
+
+    return normalized
+
+
 def _normalize_event_payload(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    normalized = dict(
+    normalized = _ensure_validation_outcome(
         payload,
     )
-
-    if not normalized.get(
-        "event_type",
-    ) and normalized.get(
-        "validation_outcome",
-    ):
-        normalized["event_type"] = _LEGACY_OUTCOME_TO_EVENT_TYPE.get(
-            str(
-                normalized[
-                    "validation_outcome"
-                ],
-            ),
-        )
 
     if not normalized.get(
         "version",

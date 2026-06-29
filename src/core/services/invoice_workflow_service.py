@@ -60,7 +60,7 @@ class InvoiceWorkflowService:
         self,
         event: ValidationCompletedEvent,
     ) -> WorkflowProcessingResult:
-        transition = WORKFLOW_TRANSITIONS[event.event_type]
+        transition = WORKFLOW_TRANSITIONS[event.validation_outcome]
         snapshot = await self.invoice_repo.get_workflow_snapshot(
             event.invoice_id,
         )

@@ -31,8 +31,10 @@ _RESOLVED_CANDIDATE_TYPES = (
 )
 
 _NEEDS_REVIEW_OUTCOMES = (
-    InvoiceValidationOutcome.PENDING_REVIEW,
-    InvoiceValidationOutcome.REJECTED,
+    InvoiceValidationOutcome.RECOVERED,
+    InvoiceValidationOutcome.AMBIGUOUS,
+    InvoiceValidationOutcome.UNRESOLVED,
+    InvoiceValidationOutcome.DUPLICATE,
 )
 
 

@@ -237,3 +237,30 @@ async def list_overdue_invoices(
         query,
         current_user,
     )
+
+
+@router.get(
+    "/invoices/overdue",
+    response_model=DashboardInvoiceListResponse,
+)
+async def list_overdue_invoices(
+    pagination: DashboardPaginationParams = Depends(
+        _pagination_params,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *DASHBOARD_ROLES,
+        ),
+    ),
+) -> DashboardInvoiceListResponse:
+    service = DashboardService(
+        db,
+    )
+
+    return await service.list_overdue(
+        pagination,
+        current_user,
+    )

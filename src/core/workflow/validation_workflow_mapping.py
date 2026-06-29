@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.constants.redis_stream_constants import (
-    VALIDATION_EVENT_TYPE_COMPLETED,
-    VALIDATION_EVENT_TYPE_PENDING_REVIEW,
-    VALIDATION_EVENT_TYPE_REJECTED,
-)
 from src.data.models.postgres.enums import (
     InvoiceStatus,
     InvoiceValidationOutcome,
+)
+from src.schemas.validation_event_schema import (
+    ValidationEventOutcome,
 )
 
 
@@ -22,33 +20,51 @@ class WorkflowTransition:
 
 
 WORKFLOW_TRANSITIONS: dict[
-    str,
+    ValidationEventOutcome,
     WorkflowTransition,
 ] = {
-    VALIDATION_EVENT_TYPE_COMPLETED: WorkflowTransition(
+    ValidationEventOutcome.RESOLVED: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
-        target_validation_outcome=InvoiceValidationOutcome.APPROVED,
-        audit_action="VALIDATION_COMPLETED",
+        target_validation_outcome=InvoiceValidationOutcome.RESOLVED,
+        audit_action="VALIDATION_RESOLVED",
         remarks=(
-            "Validation completed with approved outcome; "
+            "Validation completed with resolved outcome; "
             "invoice moved to human review"
         ),
     ),
-    VALIDATION_EVENT_TYPE_PENDING_REVIEW: WorkflowTransition(
+    ValidationEventOutcome.RECOVERED: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
-        target_validation_outcome=InvoiceValidationOutcome.PENDING_REVIEW,
-        audit_action="VALIDATION_PENDING_REVIEW",
+        target_validation_outcome=InvoiceValidationOutcome.RECOVERED,
+        audit_action="VALIDATION_RECOVERED",
         remarks=(
-            "Validation completed with pending review outcome; "
+            "Validation completed with recovered outcome; "
             "invoice moved to human review"
         ),
     ),
-    VALIDATION_EVENT_TYPE_REJECTED: WorkflowTransition(
+    ValidationEventOutcome.AMBIGUOUS: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
-        target_validation_outcome=InvoiceValidationOutcome.REJECTED,
-        audit_action="VALIDATION_REJECTED",
+        target_validation_outcome=InvoiceValidationOutcome.AMBIGUOUS,
+        audit_action="VALIDATION_AMBIGUOUS",
         remarks=(
-            "Validation completed with rejected outcome; "
+            "Validation completed with ambiguous outcome; "
+            "invoice moved to human review"
+        ),
+    ),
+    ValidationEventOutcome.UNRESOLVED: WorkflowTransition(
+        target_status=InvoiceStatus.UNDER_REVIEW,
+        target_validation_outcome=InvoiceValidationOutcome.UNRESOLVED,
+        audit_action="VALIDATION_UNRESOLVED",
+        remarks=(
+            "Validation completed with unresolved outcome; "
+            "invoice moved to human review"
+        ),
+    ),
+    ValidationEventOutcome.DUPLICATE: WorkflowTransition(
+        target_status=InvoiceStatus.UNDER_REVIEW,
+        target_validation_outcome=InvoiceValidationOutcome.DUPLICATE,
+        audit_action="VALIDATION_DUPLICATE",
+        remarks=(
+            "Validation completed with duplicate outcome; "
             "invoice moved to human review"
         ),
     ),

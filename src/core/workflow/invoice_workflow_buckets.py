@@ -29,8 +29,10 @@ class FinanceManagerBucket(str, Enum):
 
 
 _NEEDS_REVIEW_OUTCOMES = (
-    InvoiceValidationOutcome.PENDING_REVIEW,
-    InvoiceValidationOutcome.REJECTED,
+    InvoiceValidationOutcome.RECOVERED,
+    InvoiceValidationOutcome.AMBIGUOUS,
+    InvoiceValidationOutcome.UNRESOLVED,
+    InvoiceValidationOutcome.DUPLICATE,
 )
 
 
@@ -40,7 +42,7 @@ def dashboard_bucket_filter(
     if bucket == DashboardBucket.READY_FOR_APPROVAL:
         return and_(
             Invoice.invoice_status == InvoiceStatus.UNDER_REVIEW,
-            Invoice.validation_outcome == InvoiceValidationOutcome.APPROVED,
+            Invoice.validation_outcome == InvoiceValidationOutcome.RESOLVED,
         )
 
     if bucket == DashboardBucket.NEEDS_REVIEW:
@@ -75,7 +77,7 @@ def is_ready_for_approval(
 ) -> bool:
     return (
         invoice_status == InvoiceStatus.UNDER_REVIEW
-        and validation_outcome == InvoiceValidationOutcome.APPROVED
+        and validation_outcome == InvoiceValidationOutcome.RESOLVED
     )
 
 
