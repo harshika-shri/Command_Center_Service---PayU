@@ -13,11 +13,17 @@ from src.api.rest.dependencies import (
 from src.api.rest.list_query_dependencies import (
     invoice_list_query_params,
 )
+from src.core.services.dashboard_charts_service import (
+    DashboardChartsService,
+)
 from src.core.services.finance_manager_service import (
     FinanceManagerService,
 )
 from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
+from src.schemas.dashboard_charts_schema import (
+    ChartDataResponse,
+)
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListResponse,
 )
@@ -61,6 +67,99 @@ async def get_finance_manager_summary(
     return await service.get_summary(
         current_user.id,
     )
+
+
+@router.get(
+    "/dashboard/charts/status-distribution",
+    response_model=ChartDataResponse,
+)
+async def get_manager_status_distribution(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_MANAGER_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_manager_status_distribution()
+
+
+@router.get(
+    "/dashboard/charts/team-performance",
+    response_model=ChartDataResponse,
+)
+async def get_manager_team_performance(
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_MANAGER_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_manager_team_performance()
+
+
+@router.get(
+    "/dashboard/charts/validation-breakdown",
+    response_model=ChartDataResponse,
+)
+async def get_manager_validation_breakdown(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_MANAGER_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_manager_validation_breakdown()
+
+
+@router.get(
+    "/dashboard/charts/pending-work-by-vendor",
+    response_model=ChartDataResponse,
+)
+async def get_manager_pending_work_by_vendor(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_MANAGER_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_manager_pending_work_by_vendor()
 
 
 @router.get(
