@@ -18,6 +18,7 @@ from src.core.workflow.invoice_workflow_buckets import (
     DashboardBucket,
     dashboard_bucket_filter,
 )
+from src.data.models.postgres.invoice_extracted_vendor import InvoiceExtractedVendor
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
@@ -189,6 +190,12 @@ class DashboardRepository(BaseRepository):
                 Invoice.id,
                 Invoice.invoice_number,
                 Invoice.invoice_date,
+
+                func.coalesce(
+                    VendorMaster.vendor_name,
+                    InvoiceExtractedVendor.vendor_name,
+                ).label("vendor_name"),
+
                 Invoice.due_date,
                 VendorMaster.vendor_name,
                 Invoice.total_amount,
@@ -205,6 +212,10 @@ class DashboardRepository(BaseRepository):
             .outerjoin(
                 VendorMaster,
                 Invoice.vendor_id == VendorMaster.id,
+            )
+            .outerjoin(
+                InvoiceExtractedVendor,
+                Invoice.id == InvoiceExtractedVendor.invoice_id,
             )
             .where(
                 combined_filter,

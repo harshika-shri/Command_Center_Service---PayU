@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from src.data.models.postgres.disputes import Dispute
 from src.data.models.postgres.enums import (
@@ -105,6 +105,7 @@ class RejectionRepository(BaseRepository):
             .values(
                 invoice_status=InvoiceStatus.REJECTED,
                 rejection_reason=rejection_reason,
+                updated_at=func.now(),
             ),
         )
 
