@@ -3,12 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from src.data.models.postgres.disputes import Dispute
 from src.data.models.postgres.enums import (
     DisputeStatus,
     InvoiceStatus,
+    InvoiceValidationOutcome,
     ValidationIssueStatus,
 )
 from src.data.models.postgres.invoice_extracted_vendor import (
@@ -23,6 +24,9 @@ from src.data.models.postgres.invoice_validation_issues import (
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
+from src.data.repositories.invoice_recipient_repo import (
+    InvoiceRecipientRepository,
+)
 
 _UNRESOLVED_ISSUE_STATUSES = (
     ValidationIssueStatus.OPEN,
@@ -37,6 +41,7 @@ class RejectionInvoiceSnapshot:
     invoice_id: UUID
     invoice_number: str | None
     invoice_status: InvoiceStatus | None
+    validation_outcome: InvoiceValidationOutcome | None
     rejection_reason: str | None
 
 
@@ -56,6 +61,13 @@ class RejectionDraftContext:
 
 
 class RejectionRepository(BaseRepository):
+    def __init__(
+        self,
+        session,
+    ) -> None:
+        super().__init__(session)
+        self.recipient_repo = InvoiceRecipientRepository(session)
+
     async def get_invoice_for_update(
         self,
         invoice_id: UUID,
@@ -76,6 +88,7 @@ class RejectionRepository(BaseRepository):
             invoice_id=invoice.id,
             invoice_number=invoice.invoice_number,
             invoice_status=invoice.invoice_status,
+            validation_outcome=invoice.validation_outcome,
             rejection_reason=invoice.rejection_reason,
         )
 
@@ -92,6 +105,7 @@ class RejectionRepository(BaseRepository):
             .values(
                 invoice_status=InvoiceStatus.REJECTED,
                 rejection_reason=rejection_reason,
+                updated_at=func.now(),
             ),
         )
 
@@ -181,34 +195,9 @@ class RejectionRepository(BaseRepository):
         self,
         invoice_id: UUID,
     ) -> str | None:
-        result = await self.execute(
-            select(
-                VendorMaster.email,
-                InvoiceExtractedVendor.vendor_email,
-            )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                InvoiceExtractedVendor,
-                Invoice.id == InvoiceExtractedVendor.invoice_id,
-            )
-            .where(
-                Invoice.id == invoice_id,
-            ),
-        )
-        row = result.one_or_none()
-
-        if row is None:
-            return None
-
-        return self._resolve_vendor_email(
-            row.email,
-            row.vendor_email,
+        return await self.recipient_repo.get_recipient_email(
+            invoice_id,
+            sender_only=True,
         )
 
     async def get_or_create_rejection_dispute(

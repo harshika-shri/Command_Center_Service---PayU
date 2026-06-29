@@ -1,4 +1,4 @@
-from pydantic import Field, model_validator
+from pydantic import Field, computed_field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     REDIS_DB: int = Field(default=0, validation_alias="REDIS_DB")
 
     VALIDATION_EVENTS_STREAM: str = Field(
-        default="validation-events",
+        default="validation.events",
         validation_alias="VALIDATION_EVENTS_STREAM",
     )
     VALIDATION_EVENTS_CONSUMER_GROUP: str = Field(
@@ -46,6 +46,21 @@ class Settings(BaseSettings):
         default=3,
         validation_alias="REDIS_STREAM_MAX_RETRIES",
     )
+    REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS: float = Field(
+        default=5.0,
+        validation_alias="REDIS_SOCKET_CONNECT_TIMEOUT_SECONDS",
+    )
+    REDIS_SOCKET_TIMEOUT_BUFFER_SECONDS: float = Field(
+        default=5.0,
+        validation_alias="REDIS_SOCKET_TIMEOUT_BUFFER_SECONDS",
+    )
+
+    @computed_field
+    @property
+    def REDIS_SOCKET_TIMEOUT_SECONDS(self) -> float:
+        block_seconds = self.REDIS_STREAM_BLOCK_MS / 1000.0
+
+        return block_seconds + self.REDIS_SOCKET_TIMEOUT_BUFFER_SECONDS
 
     SENDGRID_API_KEY: str = Field(
         default="",
@@ -54,6 +69,10 @@ class Settings(BaseSettings):
     SENDGRID_FROM_EMAIL: str = Field(
         default="",
         validation_alias="SENDGRID_FROM_EMAIL",
+    )
+    VENDOR_EMAIL_FALLBACK: str = Field(
+        default="22b113@psgitech.ac.in",
+        validation_alias="VENDOR_EMAIL_FALLBACK",
     )
 
     GROQ_API_KEY: str = Field(

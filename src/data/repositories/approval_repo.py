@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import case, select, update
 
 from src.data.models.postgres.enums import (
     AllocationStatus,
@@ -86,23 +86,27 @@ class ApprovalRepository(BaseRepository):
         self,
         invoice_id: UUID,
     ) -> SelectedPOCandidate | None:
-        groups_result = await self.execute(
-            select(
-                InvoicePOResolutionGroup.id,
+        # Prefer an explicitly selected group; fall back to the best available
+        # (highest confidence, then earliest created) — mirrors frontend logic:
+        #   candidate_groups.find(g => g.is_selected) ?? candidate_groups[0]
+        group_result = await self.execute(
+            select(InvoicePOResolutionGroup.id)
+            .where(InvoicePOResolutionGroup.invoice_id == invoice_id)
+            .order_by(
+                case(
+                    (InvoicePOResolutionGroup.is_selected.is_(True), 0),
+                    else_=1,
+                ).asc(),
+                InvoicePOResolutionGroup.confidence_score.desc().nulls_last(),
+                InvoicePOResolutionGroup.created_at.asc(),
             )
-            .where(
-                InvoicePOResolutionGroup.invoice_id == invoice_id,
-                InvoicePOResolutionGroup.is_selected.is_(True),
-            ),
+            .limit(1),
         )
-        group_ids = list(
-            groups_result.scalars().all(),
-        )
+        group_id = group_result.scalar_one_or_none()
 
-        if len(group_ids) != 1:
+        if group_id is None:
             return None
 
-        group_id = group_ids[0]
         items_result = await self.execute(
             select(
                 InvoicePOResolutionGroupItem.po_id,
@@ -111,38 +115,46 @@ class ApprovalRepository(BaseRepository):
                 == group_id,
             ),
         )
+        po_ids = list(items_result.scalars().all())
+
+        if not po_ids:
+            return None
 
         return SelectedPOCandidate(
             group_id=group_id,
-            po_ids=list(
-                items_result.scalars().all(),
-            ),
+            po_ids=po_ids,
         )
 
     async def get_selected_allocation_candidate(
         self,
         invoice_id: UUID,
     ) -> SelectedAllocationCandidate | None:
-        groups_result = await self.execute(
-            select(
-                InvoiceLineAllocationCandidateGroup.id,
-            )
+        # Same fallback logic as get_selected_po_candidate — prefer explicitly
+        # selected, then fall back to highest-confidence / earliest-created group.
+        group_result = await self.execute(
+            select(InvoiceLineAllocationCandidateGroup.id)
             .where(
-                InvoiceLineAllocationCandidateGroup.invoice_id
-                == invoice_id,
-                InvoiceLineAllocationCandidateGroup.is_selected.is_(
-                    True,
-                ),
-            ),
+                InvoiceLineAllocationCandidateGroup.invoice_id == invoice_id,
+            )
+            .order_by(
+                case(
+                    (
+                        InvoiceLineAllocationCandidateGroup.is_selected.is_(
+                            True
+                        ),
+                        0,
+                    ),
+                    else_=1,
+                ).asc(),
+                InvoiceLineAllocationCandidateGroup.confidence_score.desc().nulls_last(),
+                InvoiceLineAllocationCandidateGroup.created_at.asc(),
+            )
+            .limit(1),
         )
-        group_ids = list(
-            groups_result.scalars().all(),
-        )
+        group_id = group_result.scalar_one_or_none()
 
-        if len(group_ids) != 1:
+        if group_id is None:
             return None
-
-        group_id = group_ids[0]
         items_result = await self.execute(
             select(
                 InvoiceLineAllocationCandidateItem.invoice_line_item_id,

@@ -1,11 +1,17 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.rest.dashboard_dependencies import (
+    run_overdue_refresh_if_required,
+)
 from src.api.rest.dependencies import (
     get_db_session,
     require_roles,
+)
+from src.api.rest.list_query_dependencies import (
+    invoice_list_query_params,
 )
 from src.core.services.dashboard_charts_service import (
     DashboardChartsService,
@@ -20,12 +26,12 @@ from src.schemas.dashboard_charts_schema import (
 )
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListResponse,
-    DashboardPaginationParams,
 )
 from src.schemas.finance_manager_schema import (
     FinanceManagerReviewResponse,
     FinanceManagerSummaryResponse,
 )
+from src.schemas.list_query_schema import InvoiceListQueryParams
 
 router = APIRouter(
     prefix="/finance-manager",
@@ -37,28 +43,14 @@ FINANCE_MANAGER_ROLES = (
 )
 
 
-def _pagination_params(
-    page: int = Query(
-        default=1,
-        ge=1,
-    ),
-    page_size: int = Query(
-        default=20,
-        ge=1,
-        le=100,
-    ),
-) -> DashboardPaginationParams:
-    return DashboardPaginationParams(
-        page=page,
-        page_size=page_size,
-    )
-
-
 @router.get(
     "/dashboard/summary",
     response_model=FinanceManagerSummaryResponse,
 )
 async def get_finance_manager_summary(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),
@@ -81,11 +73,14 @@ async def get_finance_manager_summary(
     "/dashboard/charts/status-distribution",
     response_model=ChartDataResponse,
 )
-async def get_manager_status_distribution_chart(
+async def get_manager_status_distribution(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *FINANCE_MANAGER_ROLES,
         ),
@@ -102,11 +97,11 @@ async def get_manager_status_distribution_chart(
     "/dashboard/charts/team-performance",
     response_model=ChartDataResponse,
 )
-async def get_manager_team_performance_chart(
+async def get_manager_team_performance(
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *FINANCE_MANAGER_ROLES,
         ),
@@ -116,18 +111,21 @@ async def get_manager_team_performance_chart(
         db,
     )
 
-    return await service.get_team_performance()
+    return await service.get_manager_team_performance()
 
 
 @router.get(
     "/dashboard/charts/validation-breakdown",
     response_model=ChartDataResponse,
 )
-async def get_manager_validation_breakdown_chart(
+async def get_manager_validation_breakdown(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *FINANCE_MANAGER_ROLES,
         ),
@@ -144,11 +142,14 @@ async def get_manager_validation_breakdown_chart(
     "/dashboard/charts/pending-work-by-vendor",
     response_model=ChartDataResponse,
 )
-async def get_manager_pending_work_by_vendor_chart(
+async def get_manager_pending_work_by_vendor(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),
-    _: User = Depends(
+    current_user: User = Depends(
         require_roles(
             *FINANCE_MANAGER_ROLES,
         ),
@@ -158,7 +159,7 @@ async def get_manager_pending_work_by_vendor_chart(
         db,
     )
 
-    return await service.get_pending_work_by_vendor()
+    return await service.get_manager_pending_work_by_vendor()
 
 
 @router.get(
@@ -166,8 +167,8 @@ async def get_manager_pending_work_by_vendor_chart(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_manager_my_escalated(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -184,7 +185,7 @@ async def list_finance_manager_my_escalated(
 
     return await service.list_my_escalated(
         current_user.id,
-        pagination,
+        query,
     )
 
 
@@ -193,8 +194,8 @@ async def list_finance_manager_my_escalated(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_manager_unassigned(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -211,7 +212,7 @@ async def list_finance_manager_unassigned(
 
     return await service.list_unassigned(
         current_user.id,
-        pagination,
+        query,
     )
 
 
@@ -220,8 +221,8 @@ async def list_finance_manager_unassigned(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_manager_my_claimed(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -238,7 +239,7 @@ async def list_finance_manager_my_claimed(
 
     return await service.list_my_claimed(
         current_user.id,
-        pagination,
+        query,
     )
 
 
@@ -247,8 +248,8 @@ async def list_finance_manager_my_claimed(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_manager_rejected(
-    pagination: DashboardPaginationParams = Depends(
-        _pagination_params,
+    query: InvoiceListQueryParams = Depends(
+        invoice_list_query_params,
     ),
     db: AsyncSession = Depends(
         get_db_session,
@@ -265,7 +266,7 @@ async def list_finance_manager_rejected(
 
     return await service.list_rejected(
         current_user.id,
-        pagination,
+        query,
     )
 
 

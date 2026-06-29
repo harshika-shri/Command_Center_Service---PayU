@@ -7,9 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.data.repositories.dashboard_charts_repo import (
     DashboardChartsRepository,
 )
-from src.schemas.dashboard_charts_schema import (
-    ChartDataResponse,
-)
+from src.schemas.dashboard_charts_schema import ChartDataResponse
 
 
 class DashboardChartsService:
@@ -25,12 +23,9 @@ class DashboardChartsService:
         self,
         associate_id: UUID,
     ) -> ChartDataResponse:
-        labels, values = (
-            await self.charts_repo.get_associate_status_distribution(
-                associate_id,
-            )
+        labels, values = await self.charts_repo.get_status_distribution(
+            associate_id=associate_id,
         )
-
         return ChartDataResponse(
             labels=labels,
             values=values,
@@ -40,12 +35,9 @@ class DashboardChartsService:
         self,
         associate_id: UUID,
     ) -> ChartDataResponse:
-        labels, values = (
-            await self.charts_repo.get_associate_validation_breakdown(
-                associate_id,
-            )
+        labels, values = await self.charts_repo.get_validation_breakdown(
+            associate_id=associate_id,
         )
-
         return ChartDataResponse(
             labels=labels,
             values=values,
@@ -55,12 +47,9 @@ class DashboardChartsService:
         self,
         associate_id: UUID,
     ) -> ChartDataResponse:
-        labels, values = (
-            await self.charts_repo.get_associate_processing_trend(
-                associate_id,
-            )
+        labels, values = await self.charts_repo.get_processing_trend(
+            associate_id,
         )
-
         return ChartDataResponse(
             labels=labels,
             values=values,
@@ -69,10 +58,16 @@ class DashboardChartsService:
     async def get_manager_status_distribution(
         self,
     ) -> ChartDataResponse:
-        labels, values = (
-            await self.charts_repo.get_manager_status_distribution()
+        labels, values = await self.charts_repo.get_status_distribution()
+        return ChartDataResponse(
+            labels=labels,
+            values=values,
         )
 
+    async def get_manager_team_performance(
+        self,
+    ) -> ChartDataResponse:
+        labels, values = await self.charts_repo.get_team_performance()
         return ChartDataResponse(
             labels=labels,
             values=values,
@@ -81,30 +76,16 @@ class DashboardChartsService:
     async def get_manager_validation_breakdown(
         self,
     ) -> ChartDataResponse:
-        labels, values = (
-            await self.charts_repo.get_manager_validation_breakdown()
-        )
-
+        labels, values = await self.charts_repo.get_validation_breakdown()
         return ChartDataResponse(
             labels=labels,
             values=values,
         )
 
-    async def get_team_performance(
-        self,
-    ) -> ChartDataResponse:
-        labels, values = await self.charts_repo.get_team_performance()
-
-        return ChartDataResponse(
-            labels=labels,
-            values=values,
-        )
-
-    async def get_pending_work_by_vendor(
+    async def get_manager_pending_work_by_vendor(
         self,
     ) -> ChartDataResponse:
         labels, values = await self.charts_repo.get_pending_work_by_vendor()
-
         return ChartDataResponse(
             labels=labels,
             values=values,

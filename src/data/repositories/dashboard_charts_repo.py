@@ -16,9 +16,7 @@ from src.data.models.postgres.enums import (
     UserRole,
     ValidationIssueStatus,
 )
-from src.data.models.postgres.invoice_extracted_vendor import (
-    InvoiceExtractedVendor,
-)
+from src.data.models.postgres.invoice_extracted_vendor import InvoiceExtractedVendor
 from src.data.models.postgres.invoice_validation_issues import (
     InvoiceValidationIssue,
 )
@@ -41,15 +39,7 @@ _UNRESOLVED_ISSUE_STATUSES = (
     ValidationIssueStatus.PENDING_REVIEW,
 )
 
-_ASSOCIATE_STATUS_BUCKETS: list[tuple[str, DashboardBucket | None]] = [
-    ("Ready for Approval", DashboardBucket.READY_FOR_APPROVAL),
-    ("Needs Review", DashboardBucket.NEEDS_REVIEW),
-    ("Escalated", DashboardBucket.ESCALATED),
-    ("Ready to Pay", DashboardBucket.READY_TO_PAY),
-    ("Rejected", DashboardBucket.REJECTED),
-]
-
-_MANAGER_STATUS_BUCKETS: list[tuple[str, DashboardBucket | None]] = [
+_STATUS_BUCKETS: list[tuple[str, DashboardBucket | None]] = [
     ("Ready for Approval", DashboardBucket.READY_FOR_APPROVAL),
     ("Needs Review", DashboardBucket.NEEDS_REVIEW),
     ("Escalated", DashboardBucket.ESCALATED),
@@ -68,20 +58,23 @@ _TREND_DAYS = 7
 
 
 class DashboardChartsRepository(BaseRepository):
-    async def get_associate_status_distribution(
+    async def get_status_distribution(
         self,
-        associate_id: UUID,
+        *,
+        associate_id: UUID | None = None,
     ) -> tuple[list[str], list[int]]:
         labels: list[str] = []
         values: list[int] = []
 
-        ownership_filter = (
-            InvoiceOwnershipRepository.associate_ownership_filter(
-                associate_id,
+        ownership_filter = None
+        if associate_id is not None:
+            ownership_filter = (
+                InvoiceOwnershipRepository.associate_ownership_filter(
+                    associate_id,
+                )
             )
-        )
 
-        for label, bucket in _ASSOCIATE_STATUS_BUCKETS:
+        for label, bucket in _STATUS_BUCKETS:
             if bucket is None:
                 continue
 
@@ -111,121 +104,46 @@ class DashboardChartsRepository(BaseRepository):
 
         return labels, values
 
-    async def get_manager_status_distribution(
+    async def get_validation_breakdown(
         self,
+        *,
+        associate_id: UUID | None = None,
     ) -> tuple[list[str], list[int]]:
-        labels: list[str] = []
-        values: list[int] = []
-
-        for label, bucket in _MANAGER_STATUS_BUCKETS:
-            if bucket is None:
-                continue
-
-            count = await self._count_invoices(
-                dashboard_bucket_filter(
-                    bucket,
-                ),
-            )
-            labels.append(
-                label,
-            )
-            values.append(
-                count,
-            )
-
-        overdue_count = await self._count_invoices(
-            Invoice.invoice_status == InvoiceStatus.OVERDUE,
-        )
-        labels.append(
-            "Overdue",
-        )
-        values.append(
-            overdue_count,
+        query = select(
+            InvoiceValidationIssue.check_stage,
+            func.count().label(
+                "issue_count",
+            ),
+        ).select_from(
+            InvoiceValidationIssue,
         )
 
-        return labels, values
-
-    async def get_associate_validation_breakdown(
-        self,
-        associate_id: UUID,
-    ) -> tuple[list[str], list[int]]:
-        ownership_filter = (
-            InvoiceOwnershipRepository.associate_ownership_filter(
-                associate_id,
+        if associate_id is not None:
+            ownership_filter = (
+                InvoiceOwnershipRepository.associate_ownership_filter(
+                    associate_id,
+                )
             )
-        )
-
-        result = await self.execute(
-            select(
-                InvoiceValidationIssue.check_stage,
-                func.count().label(
-                    "issue_count",
-                ),
-            )
-            .select_from(
-                InvoiceValidationIssue,
-            )
-            .join(
+            query = query.join(
                 Invoice,
                 InvoiceValidationIssue.invoice_id == Invoice.id,
-            )
-            .where(
+            ).where(
                 InvoiceValidationIssue.status.in_(
                     _UNRESOLVED_ISSUE_STATUSES,
                 ),
                 ownership_filter,
             )
-            .group_by(
-                InvoiceValidationIssue.check_stage,
-            )
-            .order_by(
-                func.count().desc(),
-            ),
-        )
-
-        labels: list[str] = []
-        values: list[int] = []
-
-        for row in result.all():
-            labels.append(
-                REPORT_VALIDATION_NODE_LABELS.get(
-                    row.check_stage,
-                    row.check_stage.replace(
-                        "_",
-                        " ",
-                    ).title(),
-                ),
-            )
-            values.append(
-                int(
-                    row.issue_count,
-                ),
-            )
-
-        return labels, values
-
-    async def get_manager_validation_breakdown(
-        self,
-    ) -> tuple[list[str], list[int]]:
-        result = await self.execute(
-            select(
-                InvoiceValidationIssue.check_stage,
-                func.count().label(
-                    "issue_count",
-                ),
-            )
-            .select_from(
-                InvoiceValidationIssue,
-            )
-            .where(
+        else:
+            query = query.where(
                 InvoiceValidationIssue.status.in_(
                     _UNRESOLVED_ISSUE_STATUSES,
                 ),
             )
-            .group_by(
+
+        result = await self.execute(
+            query.group_by(
                 InvoiceValidationIssue.check_stage,
-            )
-            .order_by(
+            ).order_by(
                 func.count().desc(),
             ),
         )
@@ -251,22 +169,15 @@ class DashboardChartsRepository(BaseRepository):
 
         return labels, values
 
-    async def get_associate_processing_trend(
+    async def get_processing_trend(
         self,
         associate_id: UUID,
+        *,
+        days: int = _TREND_DAYS,
     ) -> tuple[list[str], list[int]]:
-        start_date = date.today() - timedelta(
-            days=_TREND_DAYS - 1,
-        )
-        day_labels = [
-            (start_date + timedelta(days=offset)).isoformat()
-            for offset in range(
-                _TREND_DAYS,
-            )
-        ]
-        counts_by_day = dict.fromkeys(
-            day_labels,
-            0,
+        end_date = date.today()
+        start_date = end_date - timedelta(
+            days=days - 1,
         )
 
         result = await self.execute(
@@ -278,8 +189,11 @@ class DashboardChartsRepository(BaseRepository):
                     "activity_date",
                 ),
                 func.count().label(
-                    "activity_count",
+                    "processed_count",
                 ),
+            )
+            .select_from(
+                AuditLog,
             )
             .where(
                 AuditLog.performed_by == associate_id,
@@ -291,8 +205,19 @@ class DashboardChartsRepository(BaseRepository):
                     Date,
                 )
                 >= start_date,
+                cast(
+                    AuditLog.created_at,
+                    Date,
+                )
+                <= end_date,
             )
             .group_by(
+                cast(
+                    AuditLog.created_at,
+                    Date,
+                ),
+            )
+            .order_by(
                 cast(
                     AuditLog.created_at,
                     Date,
@@ -300,17 +225,34 @@ class DashboardChartsRepository(BaseRepository):
             ),
         )
 
-        for row in result.all():
-            key = row.activity_date.isoformat()
-            if key in counts_by_day:
-                counts_by_day[key] = int(
-                    row.activity_count,
-                )
+        counts_by_date = {
+            row.activity_date: int(
+                row.processed_count,
+            )
+            for row in result.all()
+        }
 
-        return day_labels, [
-            counts_by_day[label]
-            for label in day_labels
-        ]
+        labels: list[str] = []
+        values: list[int] = []
+
+        current = start_date
+        while current <= end_date:
+            labels.append(
+                current.strftime(
+                    "%b %d",
+                ),
+            )
+            values.append(
+                counts_by_date.get(
+                    current,
+                    0,
+                ),
+            )
+            current += timedelta(
+                days=1,
+            )
+
+        return labels, values
 
     async def get_team_performance(
         self,
@@ -407,7 +349,7 @@ class DashboardChartsRepository(BaseRepository):
             )
             .outerjoin(
                 InvoiceExtractedVendor,
-                InvoiceExtractedVendor.invoice_id == Invoice.id,
+                Invoice.id == InvoiceExtractedVendor.invoice_id,
             )
             .where(
                 pending_filter,
@@ -444,7 +386,11 @@ class DashboardChartsRepository(BaseRepository):
     ) -> int:
         from sqlalchemy import and_
 
-        conditions = [condition for condition in filters if condition is not None]
+        conditions = [
+            condition
+            for condition in filters
+            if condition is not None
+        ]
         where_clause = and_(
             *conditions,
         ) if conditions else None

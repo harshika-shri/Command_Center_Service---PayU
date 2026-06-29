@@ -7,14 +7,18 @@ from src.api.rest.dependencies import (
     get_current_user,
     get_db_session,
 )
+from src.api.rest.list_query_dependencies import (
+    notification_list_query_params,
+)
 from src.core.services.notification_service import (
     NotificationService,
 )
 from src.data.models.postgres.users import User
+from src.schemas.list_query_schema import NotificationListQueryParams
 from src.schemas.notification_schema import (
     MarkAllNotificationsReadResponse,
     MarkNotificationReadResponse,
-    NotificationItem,
+    NotificationListResponse,
     NotificationUnreadCountResponse,
 )
 
@@ -26,22 +30,26 @@ router = APIRouter(
 
 @router.get(
     "",
-    response_model=list[NotificationItem],
+    response_model=NotificationListResponse,
 )
 async def list_notifications(
+    query: NotificationListQueryParams = Depends(
+        notification_list_query_params,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),
     current_user: User = Depends(
         get_current_user,
     ),
-) -> list[NotificationItem]:
+) -> NotificationListResponse:
     service = NotificationService(
         db,
     )
 
     return await service.list_notifications(
         current_user.id,
+        query,
     )
 
 

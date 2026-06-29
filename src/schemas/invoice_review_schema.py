@@ -136,6 +136,7 @@ class ReviewSummaryDetails(BaseModel):
 
 class InvoiceValidationResponse(BaseModel):
     validation_outcome: str | None
+    clarification_sent: bool = False
     issues: list[ValidationIssueDetails] = Field(
         default_factory=list,
     )

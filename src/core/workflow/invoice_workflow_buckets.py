@@ -93,10 +93,18 @@ def is_eligible_for_clarification(
     validation_outcome: InvoiceValidationOutcome | None,
 ) -> bool:
     _ = validation_outcome
-    return invoice_status in (
-        InvoiceStatus.UNDER_REVIEW,
-        InvoiceStatus.ESCALATED,
-    )
+
+    if invoice_status is None:
+        return False
+
+    blocked_statuses = {
+        InvoiceStatus.READY_TO_PAY,
+        InvoiceStatus.PAID,
+        InvoiceStatus.REJECTED,
+        InvoiceStatus.APPROVED_READY_TO_PAY,
+    }
+
+    return invoice_status not in blocked_statuses
 
 
 def is_eligible_for_business_rejection(
@@ -120,6 +128,33 @@ def unassigned_queue_filter() -> ColumnElement[bool]:
     )
 
     return InvoiceOwnershipRepository.unassigned_queue_filter()
+
+
+def resolve_dashboard_bucket(
+    *,
+    invoice_status: InvoiceStatus | None,
+    validation_outcome: InvoiceValidationOutcome | None,
+) -> str | None:
+    if invoice_status == InvoiceStatus.READY_TO_PAY:
+        return DashboardBucket.READY_TO_PAY.value
+
+    if invoice_status == InvoiceStatus.REJECTED:
+        return DashboardBucket.REJECTED.value
+
+    if invoice_status == InvoiceStatus.OVERDUE:
+        return DashboardBucket.OVERDUE.value
+
+    if invoice_status == InvoiceStatus.ESCALATED:
+        return DashboardBucket.ESCALATED.value
+
+    if invoice_status == InvoiceStatus.UNDER_REVIEW:
+        if validation_outcome == InvoiceValidationOutcome.APPROVED:
+            return DashboardBucket.READY_FOR_APPROVAL.value
+
+        if validation_outcome in _NEEDS_REVIEW_OUTCOMES:
+            return DashboardBucket.NEEDS_REVIEW.value
+
+    return None
 
 
 def finance_manager_bucket_filter(

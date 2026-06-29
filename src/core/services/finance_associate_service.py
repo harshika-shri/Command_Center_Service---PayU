@@ -5,8 +5,11 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.core.exceptions.access_exc import (
-    InvoiceAccessDeniedError,
+from src.core.services.authorization_service import (
+    AuthorizationService,
+)
+from src.core.services.dashboard_service import (
+    DashboardService,
 )
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
@@ -18,21 +21,17 @@ from src.core.workflow.invoice_workflow_buckets import (
     DashboardBucket,
 )
 from src.data.models.postgres.enums import UserRole
-from src.data.repositories.dashboard_repo import (
-    DashboardInvoiceRow,
-)
 from src.data.repositories.finance_associate_repo import (
     FinanceAssociateRepository,
 )
 from src.schemas.dashboard_schema import (
-    DashboardInvoiceListItem,
     DashboardInvoiceListResponse,
-    DashboardPaginationParams,
     DashboardSummaryResponse,
 )
 from src.schemas.finance_associate_schema import (
     FinanceAssociateReviewResponse,
 )
+from src.schemas.list_query_schema import InvoiceListQueryParams
 
 
 class FinanceAssociateService:
@@ -47,6 +46,9 @@ class FinanceAssociateService:
             session,
         )
         self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
+        self.authorization_service = AuthorizationService(
             session,
         )
 
@@ -71,45 +73,45 @@ class FinanceAssociateService:
     async def list_ready_for_approval(
         self,
         associate_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             associate_id=associate_id,
             bucket=DashboardBucket.READY_FOR_APPROVAL,
-            pagination=pagination,
+            query=query,
         )
 
     async def list_needs_review(
         self,
         associate_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             associate_id=associate_id,
             bucket=DashboardBucket.NEEDS_REVIEW,
-            pagination=pagination,
+            query=query,
         )
 
     async def list_ready_to_pay(
         self,
         associate_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             associate_id=associate_id,
             bucket=DashboardBucket.READY_TO_PAY,
-            pagination=pagination,
+            query=query,
         )
 
     async def list_rejected(
         self,
         associate_id: UUID,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             associate_id=associate_id,
             bucket=DashboardBucket.REJECTED,
-            pagination=pagination,
+            query=query,
         )
 
     async def get_review(
@@ -117,13 +119,11 @@ class FinanceAssociateService:
         associate_id: UUID,
         invoice_id: UUID,
     ) -> FinanceAssociateReviewResponse:
-        if not await self.ownership_service.is_associate_owner(
-            associate_id=associate_id,
+        await self.authorization_service.ensure_can_view_invoice(
+            user_id=associate_id,
+            user_role=UserRole.FINANCE_ASSOCIATE,
             invoice_id=invoice_id,
-        ):
-            raise InvoiceAccessDeniedError(
-                "You do not have access to this invoice.",
-            )
+        )
 
         review = await self.review_service.get_review(
             invoice_id,
@@ -144,26 +144,25 @@ class FinanceAssociateService:
         *,
         associate_id: UUID,
         bucket: DashboardBucket,
-        pagination: DashboardPaginationParams,
+        query: InvoiceListQueryParams,
     ) -> DashboardInvoiceListResponse:
+        list_query = self.finance_associate_repo.build_query_options(
+            filters=query.to_filters(),
+            offset=query.offset,
+            limit=query.page_size,
+            sort_by=query.sort_by,
+            sort_order=query.sort_order,
+        )
         rows, total_records = (
             await self.finance_associate_repo.list_invoices_by_bucket(
                 associate_id=associate_id,
                 bucket=bucket,
-                offset=pagination.offset,
-                limit=pagination.page_size,
+                query=list_query,
             )
         )
 
-        return DashboardInvoiceListResponse(
-            items=[
-                self._map_invoice_row(
-                    row,
-                )
-                for row in rows
-            ],
-            page=pagination.page,
-            page_size=pagination.page_size,
+        return DashboardService._build_list_response(
+            rows=rows,
             total_records=total_records,
         )
 
@@ -197,4 +196,5 @@ class FinanceAssociateService:
 
         return float(
             amount,
+            query=query,
         )

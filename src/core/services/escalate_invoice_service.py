@@ -15,17 +15,22 @@ from src.core.services.audit_log_service import (
     AuditLogCreatePayload,
     AuditLogService,
 )
+from src.core.services.authorization_service import (
+    AuthorizationService,
+)
 from src.core.services.invoice_ownership_service import (
     InvoiceOwnershipService,
 )
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.invoice_workflow_buckets import (
     is_eligible_for_escalation,
 )
 from src.data.models.postgres.enums import (
     InvoiceStatus,
+    InvoiceValidationOutcome,
 )
 from src.data.repositories.escalation_repo import (
     EscalationRepository,
@@ -53,6 +58,9 @@ class EscalateInvoiceService:
             session,
         )
         self.ownership_service = InvoiceOwnershipService(
+            session,
+        )
+        self.authorization_service = AuthorizationService(
             session,
         )
         self.user_repo = UserRepository(
@@ -89,7 +97,7 @@ class EscalateInvoiceService:
                 "Escalating user must be an active user.",
             )
 
-        await self.ownership_service.ensure_can_take_action(
+        await self.authorization_service.ensure_can_escalate(
             user_id=request.escalated_by,
             user_role=escalating_user.role,
             invoice_id=invoice_id,
@@ -128,6 +136,15 @@ class EscalateInvoiceService:
             invoice_id=invoice_id,
             manager_id=request.manager_id,
             associate_id=associate_id,
+        )
+
+        await SSEEventPublisher.schedule_escalation_events(
+            self.escalation_repo.session,
+            invoice_id=invoice_id,
+            manager_id=request.manager_id,
+            associate_id=associate_id,
+            validation_outcome=snapshot.validation_outcome
+            or InvoiceValidationOutcome.APPROVED,
         )
 
         return EscalateInvoiceResponse(

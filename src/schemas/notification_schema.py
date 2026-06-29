@@ -27,3 +27,12 @@ class MarkNotificationReadResponse(BaseModel):
 
 class MarkAllNotificationsReadResponse(BaseModel):
     message: str
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationItem]
+    total_records: int
+    total_pages: int
+    current_page: int
+    page_size: int
+    page: int

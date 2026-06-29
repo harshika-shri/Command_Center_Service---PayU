@@ -9,6 +9,7 @@ from src.data.repositories.dashboard_repo import (
     DashboardInvoiceRow,
     DashboardRepository,
     DashboardSummaryCounts,
+    InvoiceListQueryOptions,
 )
 from src.data.repositories.invoice_ownership_repo import (
     InvoiceOwnershipRepository,
@@ -57,13 +58,11 @@ class FinanceAssociateRepository(DashboardRepository):
         *,
         associate_id: UUID,
         bucket: DashboardBucket,
-        offset: int,
-        limit: int,
+        query: InvoiceListQueryOptions,
     ) -> tuple[list[DashboardInvoiceRow], int]:
         return await super().list_invoices_by_bucket(
             bucket=bucket,
-            offset=offset,
-            limit=limit,
+            query=query,
             extra_filter=InvoiceOwnershipRepository.associate_ownership_filter(
                 associate_id,
             ),

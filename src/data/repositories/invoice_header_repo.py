@@ -5,9 +5,10 @@ from datetime import date, datetime
 from decimal import Decimal
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from src.data.models.postgres.company_master import CompanyMaster
+from src.data.models.postgres.invoice_extracted_vendor import InvoiceExtractedVendor
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
@@ -59,32 +60,33 @@ class InvoiceHeaderRepository(BaseRepository):
                 Invoice.received_email,
                 Invoice.created_at,
                 Invoice.updated_at,
-                VendorMaster.vendor_name,
-                VendorMaster.vendor_code,
-                VendorMaster.gstin.label(
-                    "vendor_gstin",
-                ),
-                VendorMaster.email,
+                # Vendor: prefer VendorMaster, fall back to InvoiceExtractedVendor
+                func.coalesce(
+                    VendorMaster.vendor_name,
+                    InvoiceExtractedVendor.vendor_name,
+                ).label('vendor_name'),
+                VendorMaster.vendor_code.label('vendor_code'),
+                func.coalesce(
+                    VendorMaster.gstin,
+                    InvoiceExtractedVendor.vendor_gstin,
+                ).label('vendor_gstin'),
+                func.coalesce(
+                    VendorMaster.email,
+                    InvoiceExtractedVendor.vendor_email,
+                ).label('vendor_email'),
+                # Company
                 CompanyMaster.company_name,
                 CompanyMaster.company_code,
-                CompanyMaster.gstin.label(
-                    "company_gstin",
-                ),
+                CompanyMaster.gstin.label('company_gstin'),
             )
-            .select_from(
-                Invoice,
-            )
+            .select_from(Invoice)
+            .outerjoin(VendorMaster, Invoice.vendor_id == VendorMaster.id)
             .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
+                InvoiceExtractedVendor,
+                Invoice.id == InvoiceExtractedVendor.invoice_id,
             )
-            .outerjoin(
-                CompanyMaster,
-                Invoice.company_id == CompanyMaster.id,
-            )
-            .where(
-                Invoice.id == invoice_id,
-            ),
+            .outerjoin(CompanyMaster, Invoice.company_id == CompanyMaster.id)
+            .where(Invoice.id == invoice_id),
         )
         row = result.one_or_none()
 
@@ -115,7 +117,7 @@ class InvoiceHeaderRepository(BaseRepository):
             vendor_name=row.vendor_name,
             vendor_code=row.vendor_code,
             vendor_gstin=row.vendor_gstin,
-            vendor_email=row.email,
+            vendor_email=row.vendor_email,
             company_name=row.company_name,
             company_code=row.company_code,
             company_gstin=row.company_gstin,

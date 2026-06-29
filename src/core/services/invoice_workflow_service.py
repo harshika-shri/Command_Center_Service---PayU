@@ -17,6 +17,7 @@ from src.core.services.audit_log_service import (
 from src.core.services.notification_service import (
     NotificationService,
 )
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.workflow.validation_workflow_mapping import (
     WORKFLOW_TRANSITIONS,
     WorkflowTransition,
@@ -82,9 +83,9 @@ class InvoiceWorkflowService:
         ):
             logger.info(
                 "Skipping duplicate validation event "
-                "invoice_id=%s outcome=%s current_status=%s",
+                "invoice_id=%s event_type=%s current_status=%s",
                 event.invoice_id,
-                event.validation_outcome.value,
+                event.event_type,
                 snapshot.invoice_status.value
                 if snapshot.invoice_status is not None
                 else None,
@@ -117,15 +118,22 @@ class InvoiceWorkflowService:
 
         logger.info(
             "Invoice workflow updated invoice_id=%s "
-            "outcome=%s old_status=%s new_status=%s",
+            "event_type=%s old_status=%s new_status=%s",
             event.invoice_id,
-            event.validation_outcome.value,
+            event.event_type,
             previous_status,
             transition.target_status.value,
         )
 
         await self.notification_service.notify_invoice_assigned(
             event.invoice_id,
+        )
+
+        await SSEEventPublisher.schedule_invoice_state_change(
+            self.invoice_repo.session,
+            invoice_id=event.invoice_id,
+            invoice_status=transition.target_status,
+            validation_outcome=transition.target_validation_outcome,
         )
 
         return WorkflowProcessingResult(
