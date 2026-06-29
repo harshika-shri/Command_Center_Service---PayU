@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Awaitable, Callable
+from datetime import date
 from uuid import UUID
 
 from sqlalchemy import select
@@ -200,6 +201,25 @@ class NotificationService:
             ),
         )
 
+    async def notify_invoice_overdue(
+        self,
+        *,
+        invoice_id: UUID,
+        invoice_number: str | None,
+        vendor_name: str | None,
+        due_date: date,
+    ) -> None:
+        await self._safe_notify(
+            action="invoice_overdue",
+            invoice_id=invoice_id,
+            notifier=lambda: self._create_invoice_overdue_notification(
+                invoice_id=invoice_id,
+                invoice_number=invoice_number,
+                vendor_name=vendor_name,
+                due_date=due_date,
+            ),
+        )
+
     async def _create_invoice_assigned_notification(
         self,
         invoice_id: UUID,
@@ -366,6 +386,39 @@ class NotificationService:
             title="Invoice Rejected",
             message=(
                 f"Invoice {display_number} has been rejected."
+            ),
+        )
+        self._schedule_notification_sse(
+            row,
+        )
+
+    async def _create_invoice_overdue_notification(
+        self,
+        *,
+        invoice_id: UUID,
+        invoice_number: str | None,
+        vendor_name: str | None,
+        due_date: date,
+    ) -> None:
+        owner_id = await self._resolve_invoice_owner_user_id(
+            invoice_id,
+        )
+
+        if owner_id is None:
+            return
+
+        display_number = invoice_number or await self._get_invoice_display_number(
+            invoice_id,
+        )
+        vendor_label = vendor_name or "Unknown vendor"
+
+        row = await self.notification_repo.create(
+            user_id=owner_id,
+            invoice_id=invoice_id,
+            title="Invoice Overdue",
+            message=(
+                f"Invoice {display_number} from {vendor_label} "
+                f"with due date {due_date.isoformat()} is overdue."
             ),
         )
         self._schedule_notification_sse(

@@ -3,6 +3,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.rest.dashboard_dependencies import (
+    run_overdue_refresh_if_required,
+)
 from src.api.rest.dependencies import (
     get_db_session,
     require_roles,
@@ -39,6 +42,9 @@ FINANCE_ASSOCIATE_ROLES = (
     response_model=FinanceAssociateDashboardSummaryResponse,
 )
 async def get_finance_associate_summary(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),
@@ -62,6 +68,9 @@ async def get_finance_associate_summary(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_ready_for_approval(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -89,6 +98,9 @@ async def list_finance_associate_ready_for_approval(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_needs_review(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -116,6 +128,9 @@ async def list_finance_associate_needs_review(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_ready_to_pay(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),
@@ -143,6 +158,9 @@ async def list_finance_associate_ready_to_pay(
     response_model=DashboardInvoiceListResponse,
 )
 async def list_finance_associate_rejected(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     query: InvoiceListQueryParams = Depends(
         invoice_list_query_params,
     ),

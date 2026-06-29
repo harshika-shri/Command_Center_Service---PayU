@@ -26,5 +26,6 @@ from .invoices import Invoice
 from .notifications import Notification
 from .po_line_items import POLineItem
 from .purchase_orders import PurchaseOrder
+from .system_jobs import SystemJob
 from .users import User
 from .vendor_master import VendorMaster

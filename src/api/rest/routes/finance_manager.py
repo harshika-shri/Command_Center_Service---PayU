@@ -3,6 +3,9 @@ from uuid import UUID
 from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.rest.dashboard_dependencies import (
+    run_overdue_refresh_if_required,
+)
 from src.api.rest.dependencies import (
     get_db_session,
     require_roles,
@@ -39,6 +42,9 @@ FINANCE_MANAGER_ROLES = (
     response_model=FinanceManagerSummaryResponse,
 )
 async def get_finance_manager_summary(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
     db: AsyncSession = Depends(
         get_db_session,
     ),

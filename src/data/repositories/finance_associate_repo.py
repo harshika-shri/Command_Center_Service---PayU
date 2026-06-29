@@ -45,6 +45,9 @@ class FinanceAssociateRepository(DashboardRepository):
             rejected=counts[
                 DashboardBucket.REJECTED.value
             ],
+            overdue=counts[
+                DashboardBucket.OVERDUE.value
+            ],
             total=sum(
                 counts.values(),
             ),

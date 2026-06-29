@@ -66,6 +66,7 @@ class FinanceAssociateService:
             escalated=counts.escalated,
             ready_to_pay=counts.ready_to_pay,
             rejected=counts.rejected,
+            overdue=counts.overdue,
             total=counts.total,
         )
 
