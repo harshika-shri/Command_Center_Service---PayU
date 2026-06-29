@@ -21,7 +21,6 @@ from src.core.workflow.invoice_workflow_buckets import (
 from src.data.models.postgres.invoice_extracted_vendor import (
     InvoiceExtractedVendor,
 )
-from src.data.models.postgres.invoice_extracted_vendor import InvoiceExtractedVendor
 from src.data.models.postgres.invoices import Invoice
 from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.base_repo import BaseRepository
@@ -124,101 +123,9 @@ class DashboardRepository(BaseRepository):
                 extra_filter,
             )
 
-        base_query = (
-            select(
-                Invoice.id,
-                Invoice.invoice_number,
-                Invoice.invoice_date,
-                Invoice.due_date,
-                func.coalesce(
-                    VendorMaster.vendor_name,
-                    InvoiceExtractedVendor.vendor_name,
-                ).label(
-                    "vendor_name",
-                ),
-                Invoice.total_amount,
-                Invoice.validation_outcome,
-                Invoice.invoice_status,
-                Invoice.rejection_reason,
-                Invoice.escalated_to,
-                Invoice.assigned_manager_id,
-                Invoice.created_at,
-            )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                InvoiceExtractedVendor,
-                InvoiceExtractedVendor.invoice_id == Invoice.id,
-            )
-            .where(
-                bucket_filter,
-            )
-        )
-
-        count_result = await self.execute(
-            select(
-                func.count(),
-            )
-            .select_from(
-                Invoice,
-            )
-            .where(
-                bucket_filter,
-            ),
-        )
-        total_records = int(
-            count_result.scalar_one(),
-        )
-
-        list_result = await self.execute(
-            base_query.order_by(
-                Invoice.created_at.desc(),
-            )
-            .offset(
-                offset,
-            )
-            .limit(
-                limit,
-            ),
-        )
-
-        items = [
-            DashboardInvoiceRow(
-                invoice_id=row.id,
-                invoice_number=row.invoice_number,
-                invoice_date=row.invoice_date,
-                due_date=row.due_date,
-                vendor_name=row.vendor_name,
-                total_amount=row.total_amount,
-                validation_outcome=(
-                    row.validation_outcome.value
-                    if row.validation_outcome is not None
-                    else None
-                ),
-                invoice_status=(
-                    row.invoice_status.value
-                    if row.invoice_status is not None
-                    else None
-                ),
-                rejection_reason=row.rejection_reason,
-                escalated_to=row.escalated_to,
-                assigned_manager_id=row.assigned_manager_id,
-                created_at=row.created_at,
-            )
-            for row in list_result.all()
-        ]
-
-        return items, total_records
-
         return await self._list_invoices(
             base_filter=bucket_filter,
             query=query,
-            extra_filter=extra_filter,
         )
 
     async def list_invoices_by_custom_filter(
@@ -260,6 +167,21 @@ class DashboardRepository(BaseRepository):
             sort_by=query.sort_by,
         )
 
+        sort_expression, sort_requires_vendor = (
+            SortingHelper.resolve_invoice_sort(
+                sort_by=query.sort_by,
+                sort_order=query.sort_order,
+            )
+        )
+        requires_vendor_join = (
+            requires_vendor_join or sort_requires_vendor
+        )
+
+        vendor_name_expr = func.coalesce(
+            VendorMaster.vendor_name,
+            InvoiceExtractedVendor.vendor_name,
+        )
+
         count_query = select(
             func.count(
                 func.distinct(
@@ -268,6 +190,31 @@ class DashboardRepository(BaseRepository):
             ),
         ).select_from(
             Invoice,
+        )
+
+        list_query = select(
+            Invoice.id,
+            Invoice.invoice_number,
+            Invoice.invoice_date,
+            Invoice.due_date,
+            vendor_name_expr.label(
+                "vendor_name",
+            ),
+            Invoice.total_amount,
+            Invoice.validation_outcome,
+            Invoice.invoice_status,
+            Invoice.rejection_reason,
+            Invoice.escalated_to,
+            Invoice.assigned_manager_id,
+            Invoice.created_at,
+        ).select_from(
+            Invoice,
+        ).outerjoin(
+            VendorMaster,
+            Invoice.vendor_id == VendorMaster.id,
+        ).outerjoin(
+            InvoiceExtractedVendor,
+            Invoice.id == InvoiceExtractedVendor.invoice_id,
         )
 
         if requires_vendor_join:
@@ -285,101 +232,24 @@ class DashboardRepository(BaseRepository):
             count_result.scalar_one(),
         )
 
-        list_query = (
-            select(
-                Invoice.id,
-                Invoice.invoice_number,
-                Invoice.invoice_date,
-                Invoice.due_date,
-                func.coalesce(
-                    VendorMaster.vendor_name,
-                    InvoiceExtractedVendor.vendor_name,
-                ).label(
-                    "vendor_name",
-                ),
-
-                func.coalesce(
-                    VendorMaster.vendor_name,
-                    InvoiceExtractedVendor.vendor_name,
-                ).label("vendor_name"),
-
-                Invoice.due_date,
-                VendorMaster.vendor_name,
-                Invoice.total_amount,
-                Invoice.validation_outcome,
-                Invoice.invoice_status,
-                Invoice.rejection_reason,
-                Invoice.escalated_to,
-                Invoice.assigned_manager_id,
-                Invoice.created_at,
-            )
-            .select_from(
-                Invoice,
-            )
-            .outerjoin(
-                VendorMaster,
-                Invoice.vendor_id == VendorMaster.id,
-            )
-            .outerjoin(
-                InvoiceExtractedVendor,
-                InvoiceExtractedVendor.invoice_id == Invoice.id,
-            )
-            .where(
-                bucket_filter,
-            )
-        )
-
-        count_result = await self.execute(
-            select(
-                func.count(),
-            )
-            .select_from(
-                Invoice,
-                Invoice.id == InvoiceExtractedVendor.invoice_id,
-            )
-            .where(
+        list_result = await self.execute(
+            list_query.where(
                 combined_filter,
             )
             .order_by(
-                SortingHelper.apply_sort(
-                    sort_by=query.sort_by,
-                    sort_order=query.sort_order,
-                ),
+                sort_expression,
             )
             .offset(
                 query.offset,
             )
             .limit(
                 query.limit,
-            )
-        )
-
-        list_result = await self.execute(
-            list_query,
+            ),
         )
 
         items = [
-            DashboardInvoiceRow(
-                invoice_id=row.id,
-                invoice_number=row.invoice_number,
-                invoice_date=row.invoice_date,
-                due_date=row.due_date,
-                vendor_name=row.vendor_name,
-                total_amount=row.total_amount,
-                validation_outcome=(
-                    row.validation_outcome.value
-                    if row.validation_outcome is not None
-                    else None
-                ),
-                invoice_status=(
-                    row.invoice_status.value
-                    if row.invoice_status is not None
-                    else None
-                ),
-                rejection_reason=row.rejection_reason,
-                escalated_to=row.escalated_to,
-                assigned_manager_id=row.assigned_manager_id,
-                created_at=row.created_at,
+            self._map_invoice_row(
+                row,
             )
             for row in list_result.all()
         ]
@@ -483,4 +353,31 @@ class DashboardRepository(BaseRepository):
             limit=limit,
             sort_by=sort_by,
             sort_order=sort_order,
+        )
+
+    @staticmethod
+    def _map_invoice_row(
+        row,
+    ) -> DashboardInvoiceRow:
+        return DashboardInvoiceRow(
+            invoice_id=row.id,
+            invoice_number=row.invoice_number,
+            invoice_date=row.invoice_date,
+            due_date=row.due_date,
+            vendor_name=row.vendor_name,
+            total_amount=row.total_amount,
+            validation_outcome=(
+                row.validation_outcome.value
+                if row.validation_outcome is not None
+                else None
+            ),
+            invoice_status=(
+                row.invoice_status.value
+                if row.invoice_status is not None
+                else None
+            ),
+            rejection_reason=row.rejection_reason,
+            escalated_to=row.escalated_to,
+            assigned_manager_id=row.assigned_manager_id,
+            created_at=row.created_at,
         )

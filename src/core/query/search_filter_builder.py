@@ -21,7 +21,7 @@ from src.data.models.postgres.vendor_master import VendorMaster
 from src.data.repositories.invoice_ownership_repo import (
     InvoiceOwnershipRepository,
 )
-from src.schemas.reporting_schema import (
+from src.schemas.report_schema import (
     to_utc_end_exclusive,
     to_utc_start,
 )

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from decimal import Decimal
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -164,37 +163,5 @@ class FinanceAssociateService:
         return DashboardService._build_list_response(
             rows=rows,
             total_records=total_records,
-        )
-
-    @staticmethod
-    def _map_invoice_row(
-        row: DashboardInvoiceRow,
-    ) -> DashboardInvoiceListItem:
-        return DashboardInvoiceListItem(
-            invoice_id=row.invoice_id,
-            invoice_number=row.invoice_number,
-            invoice_date=row.invoice_date,
-            due_date=row.due_date,
-            vendor_name=row.vendor_name,
-            total_amount=FinanceAssociateService._to_float(
-                row.total_amount,
-            ),
-            validation_outcome=row.validation_outcome,
-            invoice_status=row.invoice_status,
-            rejection_reason=row.rejection_reason,
-            escalated_to=row.escalated_to,
-            assigned_manager_id=row.assigned_manager_id,
-            created_at=row.created_at,
-        )
-
-    @staticmethod
-    def _to_float(
-        amount: Decimal | None,
-    ) -> float | None:
-        if amount is None:
-            return None
-
-        return float(
-            amount,
             query=query,
         )

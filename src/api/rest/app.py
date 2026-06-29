@@ -14,9 +14,6 @@ from src.api.rest.routes.finance_associate import (
 from src.api.rest.routes.finance_manager import (
     router as finance_manager_router,
 )
-from src.api.rest.routes.events import (
-    router as events_router,
-)
 from src.api.rest.routes.health import router as health_router
 from src.api.rest.routes.invoice_approval import (
     router as invoice_approval_router,
@@ -101,6 +98,5 @@ app.include_router(router=invoice_clarification_router)
 app.include_router(router=invoice_rejection_router)
 app.include_router(router=invoice_take_ownership_router)
 app.include_router(router=notifications_router)
-app.include_router(router=events_router)
 app.include_router(router=reports_router)
 app.include_router(router=users_router)

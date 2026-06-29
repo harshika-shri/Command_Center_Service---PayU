@@ -122,17 +122,6 @@ class DashboardService:
             current_user=current_user,
         )
 
-    async def list_overdue(
-        self,
-        pagination: DashboardPaginationParams,
-        current_user: User,
-    ) -> DashboardInvoiceListResponse:
-        return await self._list_by_bucket(
-            bucket=DashboardBucket.OVERDUE,
-            pagination=pagination,
-            current_user=current_user,
-        )
-
     def _bucket_filters_for_user(
         self,
         current_user: User,
