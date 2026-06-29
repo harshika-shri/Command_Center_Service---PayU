@@ -13,11 +13,17 @@ from src.api.rest.dependencies import (
 from src.api.rest.list_query_dependencies import (
     invoice_list_query_params,
 )
+from src.core.services.dashboard_charts_service import (
+    DashboardChartsService,
+)
 from src.core.services.finance_associate_service import (
     FinanceAssociateService,
 )
 from src.data.models.postgres.enums import UserRole
 from src.data.models.postgres.users import User
+from src.schemas.dashboard_charts_schema import (
+    ChartDataResponse,
+)
 from src.schemas.dashboard_schema import (
     DashboardInvoiceListResponse,
 )
@@ -59,6 +65,81 @@ async def get_finance_associate_summary(
     )
 
     return await service.get_summary(
+        current_user.id,
+    )
+
+
+@router.get(
+    "/dashboard/charts/status-distribution",
+    response_model=ChartDataResponse,
+)
+async def get_associate_status_distribution(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_ASSOCIATE_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_associate_status_distribution(
+        current_user.id,
+    )
+
+
+@router.get(
+    "/dashboard/charts/validation-breakdown",
+    response_model=ChartDataResponse,
+)
+async def get_associate_validation_breakdown(
+    _: None = Depends(
+        run_overdue_refresh_if_required,
+    ),
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_ASSOCIATE_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_associate_validation_breakdown(
+        current_user.id,
+    )
+
+
+@router.get(
+    "/dashboard/charts/processing-trend",
+    response_model=ChartDataResponse,
+)
+async def get_associate_processing_trend(
+    db: AsyncSession = Depends(
+        get_db_session,
+    ),
+    current_user: User = Depends(
+        require_roles(
+            *FINANCE_ASSOCIATE_ROLES,
+        ),
+    ),
+) -> ChartDataResponse:
+    service = DashboardChartsService(
+        db,
+    )
+
+    return await service.get_associate_processing_trend(
         current_user.id,
     )
 
