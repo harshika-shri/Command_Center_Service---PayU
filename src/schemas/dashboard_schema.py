@@ -12,6 +12,7 @@ class DashboardSummaryResponse(BaseModel):
     escalated: int
     ready_to_pay: int
     rejected: int
+    overdue: int
     total: int
 
 
@@ -19,6 +20,7 @@ class DashboardInvoiceListItem(BaseModel):
     invoice_id: UUID
     invoice_number: str | None
     invoice_date: date | None
+    due_date: date | None = None
     vendor_name: str | None
     total_amount: float | None
     validation_outcome: str | None

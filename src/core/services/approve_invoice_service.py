@@ -188,9 +188,13 @@ class ApproveInvoiceService:
             validation_outcome=validation_outcome,
         ) and not (
             invoice_status == InvoiceStatus.ESCALATED
-            and validation_outcome == InvoiceValidationOutcome.APPROVED
+            and validation_outcome
+            in (
+                InvoiceValidationOutcome.RESOLVED,
+                InvoiceValidationOutcome.RECOVERED,
+            )
         ):
             raise InvoiceApprovalConflictError(
-                "Invoice must have approved validation outcome "
+                "Invoice must have resolved or recovered validation outcome "
                 "and be under human review or escalated.",
             )

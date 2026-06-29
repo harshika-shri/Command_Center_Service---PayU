@@ -64,6 +64,7 @@ class FinanceAssociateService:
             escalated=counts.escalated,
             ready_to_pay=counts.ready_to_pay,
             rejected=counts.rejected,
+            overdue=counts.overdue,
             total=counts.total,
         )
 
@@ -174,6 +175,7 @@ class FinanceAssociateService:
             invoice_id=row.invoice_id,
             invoice_number=row.invoice_number,
             invoice_date=row.invoice_date,
+            due_date=row.due_date,
             vendor_name=row.vendor_name,
             total_amount=FinanceAssociateService._to_float(
                 row.total_amount,

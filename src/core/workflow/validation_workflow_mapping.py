@@ -23,30 +23,48 @@ WORKFLOW_TRANSITIONS: dict[
     ValidationEventOutcome,
     WorkflowTransition,
 ] = {
-    ValidationEventOutcome.APPROVED: WorkflowTransition(
+    ValidationEventOutcome.RESOLVED: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
-        target_validation_outcome=InvoiceValidationOutcome.APPROVED,
-        audit_action="VALIDATION_COMPLETED",
+        target_validation_outcome=InvoiceValidationOutcome.RESOLVED,
+        audit_action="VALIDATION_RESOLVED",
         remarks=(
-            "Validation completed with approved outcome; "
+            "Validation completed with resolved outcome; "
             "invoice moved to human review"
         ),
     ),
-    ValidationEventOutcome.PENDING_REVIEW: WorkflowTransition(
+    ValidationEventOutcome.RECOVERED: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
-        target_validation_outcome=InvoiceValidationOutcome.PENDING_REVIEW,
-        audit_action="VALIDATION_PENDING_REVIEW",
+        target_validation_outcome=InvoiceValidationOutcome.RECOVERED,
+        audit_action="VALIDATION_RECOVERED",
         remarks=(
-            "Validation completed with pending review outcome; "
+            "Validation completed with recovered outcome; "
             "invoice moved to human review"
         ),
     ),
-    ValidationEventOutcome.REJECTED: WorkflowTransition(
+    ValidationEventOutcome.AMBIGUOUS: WorkflowTransition(
         target_status=InvoiceStatus.UNDER_REVIEW,
-        target_validation_outcome=InvoiceValidationOutcome.REJECTED,
-        audit_action="VALIDATION_REJECTED",
+        target_validation_outcome=InvoiceValidationOutcome.AMBIGUOUS,
+        audit_action="VALIDATION_AMBIGUOUS",
         remarks=(
-            "Validation completed with rejected outcome; "
+            "Validation completed with ambiguous outcome; "
+            "invoice moved to human review"
+        ),
+    ),
+    ValidationEventOutcome.UNRESOLVED: WorkflowTransition(
+        target_status=InvoiceStatus.UNDER_REVIEW,
+        target_validation_outcome=InvoiceValidationOutcome.UNRESOLVED,
+        audit_action="VALIDATION_UNRESOLVED",
+        remarks=(
+            "Validation completed with unresolved outcome; "
+            "invoice moved to human review"
+        ),
+    ),
+    ValidationEventOutcome.DUPLICATE: WorkflowTransition(
+        target_status=InvoiceStatus.UNDER_REVIEW,
+        target_validation_outcome=InvoiceValidationOutcome.DUPLICATE,
+        audit_action="VALIDATION_DUPLICATE",
+        remarks=(
+            "Validation completed with duplicate outcome; "
             "invoice moved to human review"
         ),
     ),

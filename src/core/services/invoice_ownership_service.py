@@ -152,7 +152,10 @@ class InvoiceOwnershipService:
         if snapshot is None:
             return False
 
-        if snapshot.validation_outcome != InvoiceValidationOutcome.APPROVED:
+        if snapshot.validation_outcome not in (
+            InvoiceValidationOutcome.RESOLVED,
+            InvoiceValidationOutcome.RECOVERED,
+        ):
             return False
 
         if snapshot.invoice_status == InvoiceStatus.UNDER_REVIEW:

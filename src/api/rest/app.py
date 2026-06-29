@@ -7,6 +7,7 @@ from sqlalchemy import text
 from src.api.rest.middleware.cors import add_cors_middleware
 from src.api.rest.middleware.error_handler import add_error_handlers
 from src.api.rest.routes.dashboard import router as dashboard_router
+from src.api.rest.routes.events import router as events_router
 from src.api.rest.routes.finance_associate import (
     router as finance_associate_router,
 )
@@ -35,7 +36,7 @@ from src.api.rest.routes.invoice_take_ownership import (
 from src.api.rest.routes.notifications import (
     router as notifications_router,
 )
-from src.api.rest.routes.reports import (
+from src.api.rest.routes.report_router import (
     router as reports_router,
 )
 from src.consumers.validation_stream_consumer import (
@@ -79,6 +80,7 @@ add_error_handlers(app)
 
 app.include_router(router=health_router)
 app.include_router(router=dashboard_router)
+app.include_router(router=events_router)
 app.include_router(router=finance_associate_router)
 app.include_router(router=finance_manager_router)
 app.include_router(router=invoice_review_router)

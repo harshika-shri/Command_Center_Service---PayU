@@ -50,6 +50,7 @@ class DashboardService:
             escalated=counts.escalated,
             ready_to_pay=counts.ready_to_pay,
             rejected=counts.rejected,
+            overdue=counts.overdue,
             total=counts.total,
         )
 
@@ -104,6 +105,17 @@ class DashboardService:
     ) -> DashboardInvoiceListResponse:
         return await self._list_by_bucket(
             bucket=DashboardBucket.REJECTED,
+            pagination=pagination,
+            current_user=current_user,
+        )
+
+    async def list_overdue(
+        self,
+        pagination: DashboardPaginationParams,
+        current_user: User,
+    ) -> DashboardInvoiceListResponse:
+        return await self._list_by_bucket(
+            bucket=DashboardBucket.OVERDUE,
             pagination=pagination,
             current_user=current_user,
         )
@@ -188,6 +200,7 @@ class DashboardService:
             invoice_id=row.invoice_id,
             invoice_number=row.invoice_number,
             invoice_date=row.invoice_date,
+            due_date=row.due_date,
             vendor_name=row.vendor_name,
             total_amount=DashboardService._to_float(
                 row.total_amount,
