@@ -144,7 +144,7 @@ class EscalateInvoiceService:
             manager_id=request.manager_id,
             associate_id=associate_id,
             validation_outcome=snapshot.validation_outcome
-            or InvoiceValidationOutcome.APPROVED,
+            or InvoiceValidationOutcome.RESOLVED,
         )
 
         return EscalateInvoiceResponse(

@@ -148,7 +148,7 @@ def resolve_dashboard_bucket(
         return DashboardBucket.ESCALATED.value
 
     if invoice_status == InvoiceStatus.UNDER_REVIEW:
-        if validation_outcome == InvoiceValidationOutcome.APPROVED:
+        if validation_outcome == InvoiceValidationOutcome.RESOLVED:
             return DashboardBucket.READY_FOR_APPROVAL.value
 
         if validation_outcome in _NEEDS_REVIEW_OUTCOMES:

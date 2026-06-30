@@ -33,6 +33,9 @@ from src.api.rest.routes.invoice_review import (
 from src.api.rest.routes.invoice_take_ownership import (
     router as invoice_take_ownership_router,
 )
+from src.api.rest.routes.mail_monitoring import (
+    router as mail_monitoring_router,
+)
 from src.api.rest.routes.notifications import (
     router as notifications_router,
 )
@@ -99,4 +102,5 @@ app.include_router(router=invoice_rejection_router)
 app.include_router(router=invoice_take_ownership_router)
 app.include_router(router=notifications_router)
 app.include_router(router=reports_router)
+app.include_router(router=mail_monitoring_router)
 app.include_router(router=users_router)

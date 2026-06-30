@@ -129,12 +129,20 @@ class InvoiceWorkflowService:
             event.invoice_id,
         )
 
-        await SSEEventPublisher.schedule_invoice_state_change(
-            self.invoice_repo.session,
-            invoice_id=event.invoice_id,
-            invoice_status=transition.target_status,
-            validation_outcome=transition.target_validation_outcome,
-        )
+        try:
+            await SSEEventPublisher.schedule_invoice_state_change(
+                self.invoice_repo.session,
+                invoice_id=event.invoice_id,
+                invoice_status=transition.target_status,
+                validation_outcome=transition.target_validation_outcome,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to schedule SSE events for validation workflow "
+                "invoice_id=%s event_type=%s",
+                event.invoice_id,
+                event.event_type,
+            )
 
         return WorkflowProcessingResult(
             invoice_id=event.invoice_id,

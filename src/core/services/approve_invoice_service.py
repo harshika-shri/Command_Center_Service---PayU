@@ -171,7 +171,7 @@ class ApproveInvoiceService:
             invoice_id=invoice_id,
             invoice_status=InvoiceStatus.READY_TO_PAY,
             validation_outcome=snapshot.validation_outcome
-            or InvoiceValidationOutcome.APPROVED,
+            or InvoiceValidationOutcome.RESOLVED,
         )
 
         return ApproveInvoiceResponse(
