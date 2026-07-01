@@ -131,6 +131,7 @@ class ReviewSummaryDetails(BaseModel):
     system_recoveries_json: list[Any]
     open_issues_json: list[Any]
     vendor_clarifications_json: list[Any]
+    validation_steps_json: dict[str, str] = Field(default_factory=dict)
     generated_at: datetime
 
 

@@ -32,6 +32,10 @@ OPEN_ISSUE_MESSAGES: dict[str, str] = {
     "PO_MISSING": (
         "No purchase order reference could be identified on the invoice."
     ),
+    "PO_RECOVERED": (
+        "A purchase order candidate was identified automatically, but the "
+        "reference on the invoice could not be confirmed."
+    ),
     "INVALID_PO_REFERENCE": (
         "The purchase order reference on the invoice could not be validated."
     ),

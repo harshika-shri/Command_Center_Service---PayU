@@ -22,6 +22,10 @@ from src.data.repositories.base_repo import BaseRepository
 from src.data.repositories.invoice_recipient_repo import (
     InvoiceRecipientRepository,
 )
+from src.utils.vendor_issue_language import (
+    deduplicate_issue_messages,
+    vendor_friendly_issue_message,
+)
 
 _UNRESOLVED_ISSUE_STATUSES = (
     ValidationIssueStatus.OPEN,
@@ -42,7 +46,9 @@ class ClarificationDraftContext:
     invoice: ClarificationInvoiceSnapshot
     vendor_email: str | None
     vendor_clarifications: list[str]
+    open_issue_summaries: list[str]
     unresolved_issue_descriptions: list[str]
+    unresolved_issue_messages: list[str]
 
     @property
     def validation_outcome(self) -> InvoiceValidationOutcome | None:
@@ -83,8 +89,16 @@ class ClarificationRepository(BaseRepository):
         vendor_clarifications = await self._get_vendor_clarifications(
             invoice_id,
         )
+        open_issue_summaries = await self._get_open_issue_summaries(
+            invoice_id,
+        )
         unresolved_issues = await self._get_unresolved_issue_descriptions(
             invoice_id,
+        )
+        unresolved_issue_messages = (
+            await self._get_unresolved_issue_messages(
+                invoice_id,
+            )
         )
 
         return ClarificationDraftContext(
@@ -96,7 +110,9 @@ class ClarificationRepository(BaseRepository):
             ),
             vendor_email=vendor_email,
             vendor_clarifications=vendor_clarifications,
+            open_issue_summaries=open_issue_summaries,
             unresolved_issue_descriptions=unresolved_issues,
+            unresolved_issue_messages=unresolved_issue_messages,
         )
 
     async def get_invoice_snapshot(
@@ -153,6 +169,84 @@ class ClarificationRepository(BaseRepository):
         return self._normalize_clarification_points(
             row.vendor_clarifications_json,
         )
+
+    async def _get_open_issue_summaries(
+        self,
+        invoice_id: UUID,
+    ) -> list[str]:
+        result = await self.execute(
+            select(
+                InvoiceReviewSummary.open_issues_json,
+            ).where(
+                InvoiceReviewSummary.invoice_id == invoice_id,
+            ),
+        )
+        row = result.one_or_none()
+
+        if row is None:
+            return []
+
+        return self._normalize_clarification_points(
+            row.open_issues_json,
+        )
+
+    async def _get_unresolved_issue_messages(
+        self,
+        invoice_id: UUID,
+    ) -> list[str]:
+        result = await self.execute(
+            select(
+                InvoiceValidationIssue.check_name,
+                InvoiceValidationIssue.description,
+                InvoiceValidationIssue.issue_metadata,
+            )
+            .where(
+                InvoiceValidationIssue.invoice_id == invoice_id,
+                InvoiceValidationIssue.status.in_(
+                    _UNRESOLVED_ISSUE_STATUSES,
+                ),
+            )
+            .order_by(
+                InvoiceValidationIssue.created_at.asc(),
+            ),
+        )
+
+        messages = [
+            vendor_friendly_issue_message(
+                issue_code=ClarificationRepository._resolve_issue_code(
+                    check_name=row.check_name,
+                    issue_metadata=row.issue_metadata,
+                ),
+                description=row.description,
+            )
+            for row in result.all()
+        ]
+
+        return deduplicate_issue_messages(
+            messages,
+        )
+
+    @staticmethod
+    def _resolve_issue_code(
+        *,
+        check_name: str,
+        issue_metadata: dict[str, Any] | None,
+    ) -> str:
+        if isinstance(
+            issue_metadata,
+            dict,
+        ):
+            issue_code = issue_metadata.get(
+                "issue_code",
+            )
+
+            if isinstance(
+                issue_code,
+                str,
+            ) and issue_code.strip():
+                return issue_code
+
+        return check_name
 
     async def _get_unresolved_issue_descriptions(
         self,

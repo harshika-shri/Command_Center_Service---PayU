@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 
 from src.data.models.postgres.enums import (
     InvoiceStatus,
@@ -11,6 +11,14 @@ from src.data.models.postgres.enums import (
 )
 from src.data.models.postgres.invoices import Invoice
 from src.data.repositories.base_repo import BaseRepository
+
+_POST_VALIDATION_TERMINAL_STATUSES = (
+    InvoiceStatus.REJECTED,
+    InvoiceStatus.READY_TO_PAY,
+    InvoiceStatus.PAID,
+    InvoiceStatus.ESCALATED,
+    InvoiceStatus.OVERDUE,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,3 +86,36 @@ class InvoiceRepository(BaseRepository):
                 validation_outcome=validation_outcome,
             ),
         )
+
+    async def find_validated_invoices_missing_under_review(
+        self,
+    ) -> list[InvoiceWorkflowSnapshot]:
+        result = await self.execute(
+            select(
+                Invoice.id,
+                Invoice.invoice_status,
+                Invoice.validation_outcome,
+            ).where(
+                Invoice.validation_outcome.is_not(
+                    None,
+                ),
+                or_(
+                    Invoice.invoice_status.is_(
+                        None,
+                    ),
+                    Invoice.invoice_status.not_in(
+                        _POST_VALIDATION_TERMINAL_STATUSES
+                        + (InvoiceStatus.UNDER_REVIEW,),
+                    ),
+                ),
+            ),
+        )
+
+        return [
+            InvoiceWorkflowSnapshot(
+                invoice_id=row.id,
+                invoice_status=row.invoice_status,
+                validation_outcome=row.validation_outcome,
+            )
+            for row in result.all()
+        ]

@@ -30,6 +30,7 @@ class ValidationStreamConsumer:
         self._handler = ValidationEventHandlerService()
         self._running = False
         self._task: asyncio.Task[None] | None = None
+        self._startup_recovery_pending = True
 
     async def start(self) -> None:
         if self._running:
@@ -38,6 +39,7 @@ class ValidationStreamConsumer:
         self._redis = get_redis_client()
         self._session_factory = get_session_factory()
         await self._ensure_consumer_group()
+        await self._recover_undelivered_stream_entries()
         self._running = True
         self._task = asyncio.create_task(
             self._consume_loop(),
@@ -80,14 +82,83 @@ class ValidationStreamConsumer:
                 mkstream=True,
             )
             logger.info(
-                "Created Redis consumer group=%s",
+                "Created Redis consumer group=%s stream=%s",
                 settings.VALIDATION_EVENTS_CONSUMER_GROUP,
+                settings.VALIDATION_EVENTS_STREAM,
             )
         except ResponseError as error:
             if "BUSYGROUP" not in str(
                 error,
             ):
                 raise
+
+    async def _recover_undelivered_stream_entries(self) -> None:
+        if self._redis is None:
+            return
+
+        try:
+            stream_info = await self._redis.xinfo_stream(
+                settings.VALIDATION_EVENTS_STREAM,
+            )
+            groups = await self._redis.xinfo_groups(
+                settings.VALIDATION_EVENTS_STREAM,
+            )
+        except ResponseError:
+            return
+
+        group_info = next(
+            (
+                group
+                for group in groups
+                if group.get("name")
+                == settings.VALIDATION_EVENTS_CONSUMER_GROUP
+            ),
+            None,
+        )
+
+        if group_info is None:
+            return
+
+        entries_read = int(
+            group_info.get(
+                "entries-read",
+                0,
+            )
+            or 0,
+        )
+        stream_length = int(
+            stream_info.get(
+                "length",
+                0,
+            )
+            or 0,
+        )
+
+        if entries_read >= stream_length:
+            return
+
+        reset_id = "0-0"
+
+        logger.warning(
+            "Recovering undelivered validation events "
+            "entries_read=%s stream_length=%s reset_id=%s",
+            entries_read,
+            stream_length,
+            reset_id,
+        )
+
+        await self._redis.xgroup_setid(
+            settings.VALIDATION_EVENTS_STREAM,
+            settings.VALIDATION_EVENTS_CONSUMER_GROUP,
+            reset_id,
+        )
+
+        logger.info(
+            "Validation consumer group read position synced for catch-up "
+            "stream=%s group=%s",
+            settings.VALIDATION_EVENTS_STREAM,
+            settings.VALIDATION_EVENTS_CONSUMER_GROUP,
+        )
 
     async def _consume_loop(self) -> None:
         while self._running:
@@ -107,28 +178,77 @@ class ValidationStreamConsumer:
         if self._redis is None or self._session_factory is None:
             return
 
+        while True:
+            processed_pending = await self._read_and_process_messages(
+                stream_id="0",
+                block_ms=None,
+                recovery=self._startup_recovery_pending,
+            )
+
+            if not processed_pending:
+                self._startup_recovery_pending = False
+                break
+
+        await self._read_and_process_messages(
+            stream_id=">",
+            block_ms=settings.REDIS_STREAM_BLOCK_MS,
+            recovery=False,
+        )
+
+    async def _read_and_process_messages(
+        self,
+        *,
+        stream_id: str,
+        block_ms: int | None,
+        recovery: bool,
+    ) -> bool:
+        if self._redis is None:
+            return False
+
         try:
-            response = await self._redis.xreadgroup(
-                groupname=settings.VALIDATION_EVENTS_CONSUMER_GROUP,
-                consumername=settings.VALIDATION_EVENTS_CONSUMER_NAME,
-                streams={
-                    settings.VALIDATION_EVENTS_STREAM: ">",
+            read_kwargs: dict[str, object] = {
+                "groupname": settings.VALIDATION_EVENTS_CONSUMER_GROUP,
+                "consumername": settings.VALIDATION_EVENTS_CONSUMER_NAME,
+                "streams": {
+                    settings.VALIDATION_EVENTS_STREAM: stream_id,
                 },
-                count=settings.REDIS_STREAM_BATCH_SIZE,
-                block=settings.REDIS_STREAM_BLOCK_MS,
+                "count": settings.REDIS_STREAM_BATCH_SIZE,
+            }
+
+            if block_ms is not None:
+                read_kwargs["block"] = block_ms
+
+            response = await self._redis.xreadgroup(
+                **read_kwargs,
             )
         except TimeoutError:
-            return
+            return False
 
         if not response:
-            return
+            return False
+
+        entry_count = sum(
+            len(messages) for _, messages in response
+        )
+
+        if entry_count == 0:
+            return False
 
         for _stream_name, messages in response:
             for message_id, fields in messages:
+                if recovery:
+                    logger.info(
+                        "Pending validation message recovered after restart "
+                        "message_id=%s",
+                        message_id,
+                    )
+
                 await self._process_message(
                     message_id=message_id,
                     fields=fields,
                 )
+
+        return True
 
     async def _process_message(
         self,
@@ -161,10 +281,11 @@ class ValidationStreamConsumer:
                     result.processed,
                     result.duplicate,
                 )
-                await self._redis.xack(
-                    settings.VALIDATION_EVENTS_STREAM,
-                    settings.VALIDATION_EVENTS_CONSUMER_GROUP,
-                    message_id,
+                await self._acknowledge_message(
+                    message_id=message_id,
+                    invoice_id=str(
+                        result.invoice_id,
+                    ),
                 )
                 return
             except Exception as error:
@@ -179,10 +300,8 @@ class ValidationStreamConsumer:
                         message_id,
                         error,
                     )
-                    await self._redis.xack(
-                        settings.VALIDATION_EVENTS_STREAM,
-                        settings.VALIDATION_EVENTS_CONSUMER_GROUP,
-                        message_id,
+                    await self._acknowledge_message(
+                        message_id=message_id,
                     )
                     return
 
@@ -191,6 +310,9 @@ class ValidationStreamConsumer:
                         "Validation event processing failed after retries "
                         "message_id=%s",
                         message_id,
+                    )
+                    await self._acknowledge_message(
+                        message_id=message_id,
                     )
                     return
 
@@ -202,6 +324,28 @@ class ValidationStreamConsumer:
                 await asyncio.sleep(
                     attempt,
                 )
+
+    async def _acknowledge_message(
+        self,
+        *,
+        message_id: str,
+        invoice_id: str | None = None,
+    ) -> None:
+        if self._redis is None:
+            return
+
+        await self._redis.xack(
+            settings.VALIDATION_EVENTS_STREAM,
+            settings.VALIDATION_EVENTS_CONSUMER_GROUP,
+            message_id,
+        )
+
+        logger.info(
+            "Redis message acknowledged stream=%s message_id=%s invoice_id=%s",
+            settings.VALIDATION_EVENTS_STREAM,
+            message_id,
+            invoice_id,
+        )
 
 
 _consumer: ValidationStreamConsumer | None = None

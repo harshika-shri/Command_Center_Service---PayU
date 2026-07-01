@@ -38,6 +38,7 @@ class ReviewSummaryRow:
     system_recoveries_json: list[Any]
     open_issues_json: list[Any]
     vendor_clarifications_json: list[Any]
+    validation_steps_json: dict[str, str]
     generated_at: datetime
 
 
@@ -132,5 +133,13 @@ class InvoiceValidationRepository(BaseRepository):
             system_recoveries_json=summary.system_recoveries_json,
             open_issues_json=summary.open_issues_json,
             vendor_clarifications_json=summary.vendor_clarifications_json,
+            validation_steps_json=dict(
+                getattr(
+                    summary,
+                    "validation_steps_json",
+                    {},
+                )
+                or {},
+            ),
             generated_at=summary.generated_at,
         )

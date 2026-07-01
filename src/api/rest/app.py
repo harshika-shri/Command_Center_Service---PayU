@@ -48,8 +48,12 @@ from src.api.rest.routes.users import (
 from src.consumers.validation_stream_consumer import (
     get_validation_stream_consumer,
 )
+from src.core.services.workflow_reconciliation_service import (
+    WorkflowReconciliationService,
+)
+from src.core.sse.sse_event_publisher import SSEEventPublisher
 from src.core.sse.sse_manager import get_sse_manager
-from src.data.clients.postgres_client import get_or_create_engine
+from src.data.clients.postgres_client import get_or_create_engine, get_session_factory
 
 
 @asynccontextmanager
@@ -65,6 +69,20 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     except Exception as error:
         print("Database connection failed")
         print(error)
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        reconciled_count = await WorkflowReconciliationService(
+            session,
+        ).reconcile_validated_invoices_missing_review_status()
+        await session.commit()
+        await SSEEventPublisher.flush()
+
+        if reconciled_count:
+            print(
+                f"Reconciled {reconciled_count} validated invoice(s) "
+                "missing under_review status",
+            )
 
     consumer = get_validation_stream_consumer()
     await consumer.start()

@@ -349,7 +349,5 @@ class ApprovalRepository(BaseRepository):
             )
             .values(
                 invoice_status=InvoiceStatus.READY_TO_PAY,
-                paid_at=None,
-                paid_by=None,
             ),
         )

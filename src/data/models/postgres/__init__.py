@@ -21,7 +21,6 @@ from .invoice_po_resolution_groups import (
     InvoicePOResolutionGroupItem,
 )
 from .invoice_review_summaries import InvoiceReviewSummary
-from .invoice_self_checks import InvoiceSelfCheck
 from .invoice_validation_issues import InvoiceValidationIssue
 from .invoices import Invoice
 from .notifications import Notification

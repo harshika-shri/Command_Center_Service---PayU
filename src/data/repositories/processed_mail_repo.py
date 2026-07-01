@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
-from sqlalchemy import String, func, literal, select, union_all
+from sqlalchemy import String, func, literal, or_, select, union_all
 
 from src.data.models.postgres.invoice_email import InvoiceEmail
 from src.data.models.postgres.processed_gmail_message import (
@@ -61,8 +61,16 @@ class ProcessedMailRepository(BaseRepository):
             )
             .outerjoin(
                 InvoiceEmail,
-                InvoiceEmail.message_id
-                == ProcessedGmailMessage.message_id,
+                or_(
+                    InvoiceEmail.message_id
+                    == ProcessedGmailMessage.message_id,
+                    InvoiceEmail.message_id.like(
+                        func.concat(
+                            ProcessedGmailMessage.message_id,
+                            literal("::%"),
+                        ),
+                    ),
+                ),
             )
         )
 
@@ -101,6 +109,15 @@ class ProcessedMailRepository(BaseRepository):
             )
             .where(
                 ~InvoiceEmail.message_id.in_(
+                    select(
+                        ProcessedGmailMessage.message_id,
+                    ),
+                ),
+                ~func.split_part(
+                    InvoiceEmail.message_id,
+                    literal("::"),
+                    literal(1),
+                ).in_(
                     select(
                         ProcessedGmailMessage.message_id,
                     ),

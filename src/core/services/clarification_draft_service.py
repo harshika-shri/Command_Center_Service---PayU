@@ -30,6 +30,9 @@ from src.data.repositories.invoice_communication_repo import (
 from src.schemas.clarification_schema import (
     ClarificationDraftResponse,
 )
+from src.utils.vendor_issue_language import (
+    deduplicate_issue_messages,
+)
 
 
 class ClarificationDraftService:
@@ -72,6 +75,8 @@ class ClarificationDraftService:
 
         clarification_points = self._resolve_clarification_points(
             context.vendor_clarifications,
+            context.open_issue_summaries,
+            context.unresolved_issue_messages,
             context.unresolved_issue_descriptions,
         )
 
@@ -128,9 +133,34 @@ class ClarificationDraftService:
     @staticmethod
     def _resolve_clarification_points(
         vendor_clarifications: list[str],
+        open_issue_summaries: list[str],
+        unresolved_issue_messages: list[str],
         unresolved_issue_descriptions: list[str],
     ) -> list[str]:
-        if vendor_clarifications:
-            return vendor_clarifications
+        points: list[str] = []
 
-        return unresolved_issue_descriptions
+        for source in (
+            vendor_clarifications,
+            open_issue_summaries,
+            unresolved_issue_messages,
+        ):
+            for point in source:
+                normalized = point.strip()
+
+                if normalized and normalized not in points:
+                    points.append(
+                        normalized,
+                    )
+
+        if not points:
+            for point in unresolved_issue_descriptions:
+                normalized = point.strip()
+
+                if normalized and normalized not in points:
+                    points.append(
+                        normalized,
+                    )
+
+        return deduplicate_issue_messages(
+            points,
+        )

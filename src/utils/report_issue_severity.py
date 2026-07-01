@@ -27,6 +27,14 @@ def issue_severity_expression() -> ColumnElement[str]:
             ReportIssueSeverity.CRITICAL.value,
         ),
         (
+            InvoiceValidationIssue.issue_type == IssueType.LOW_CONFIDENCE,
+            ReportIssueSeverity.HIGH.value,
+        ),
+        (
+            InvoiceValidationIssue.issue_type == IssueType.WARNING,
+            ReportIssueSeverity.HIGH.value,
+        ),
+        (
             InvoiceValidationIssue.status.in_(
                 (
                     ValidationIssueStatus.OPEN,
@@ -34,10 +42,6 @@ def issue_severity_expression() -> ColumnElement[str]:
                 ),
             ),
             ReportIssueSeverity.CRITICAL.value,
-        ),
-        (
-            InvoiceValidationIssue.issue_type == IssueType.LOW_CONFIDENCE,
-            ReportIssueSeverity.HIGH.value,
         ),
         (
             InvoiceValidationIssue.status.in_(

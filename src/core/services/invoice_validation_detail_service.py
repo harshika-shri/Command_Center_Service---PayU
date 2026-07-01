@@ -85,6 +85,7 @@ class InvoiceValidationDetailService:
                 system_recoveries_json=data.review_summary.system_recoveries_json,
                 open_issues_json=data.review_summary.open_issues_json,
                 vendor_clarifications_json=data.review_summary.vendor_clarifications_json,
+                validation_steps_json=data.review_summary.validation_steps_json,
                 generated_at=data.review_summary.generated_at,
             )
 
